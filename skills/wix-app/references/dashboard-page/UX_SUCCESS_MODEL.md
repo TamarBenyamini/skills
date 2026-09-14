@@ -112,7 +112,6 @@ Presentation success applies across all five stages. Choose both the right **rep
 | **Kanban** | Work moves through meaningful stages. | Stage, workload, and valid movement are understandable. |
 | **Timeline or calendar** | Time, sequence, or scheduling matters. | Upcoming activity, conflicts, and timing are clear. |
 | **Chart** | The user needs to understand a trend or relationship. | The visualization answers a specific business question. |
-| **Summary metrics** | The request asked for a total, count, or "how many" figure. | Metrics clarify conditions and where to focus; uninvited, they just push the rows down. |
 
 - Choose the default view that best supports the primary task.
 - Offer another view only when it provides distinct value.
@@ -131,9 +130,10 @@ Choose the smallest interface that gives users enough context and room to comple
 | **Inline or expanded row** | A quick look *alongside* the drill-in, not instead of it. | Detail appears without a separate workspace. |
 
 Opening an item is a **route**; a side panel is not one of the choices — in Cairo it hosts a page's
-own panels. A constraint, not a preference, and it outranks "smallest interface".
+own panels. A constraint, not a preference, and it outranks "smallest interface". Patterns has no
+side panel at all; WDS `SidePanel` is the only one, and it is not a drill-in.
 
-Which Wix primitive builds each of these — and which components serve the summaries, filters and empty states named above — is in [Collection Toolkit](COLLECTION_TOOLKIT.md).
+Which Wix primitive builds each of these — and which components serve the summaries, filters and empty states named above — is in the installed package's `Collection Toolkit.md` guide — reached through [The Discovery Chain](../WIX_PATTERNS_DOCS.md#the-discovery-chain).
 
 
 ## Data Success

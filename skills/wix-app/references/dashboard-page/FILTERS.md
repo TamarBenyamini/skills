@@ -1,7 +1,6 @@
 # Filters — naming them, and why a title goes missing
 
-> Split out of [COLLECTION_TOOLKIT.md](COLLECTION_TOOLKIT.md), which lists *which* filter component
-> to reach for. This file is about labelling them, which is where measured runs go wrong: filters
+> The package's own `Collection Toolkit.md` guide lists *which* filter component to reach for. This file is about labelling them, which is where measured runs go wrong: filters
 > that work, narrow correctly, and render with no title.
 
 Every claim below was read from the installed `@wix/patterns` sources —

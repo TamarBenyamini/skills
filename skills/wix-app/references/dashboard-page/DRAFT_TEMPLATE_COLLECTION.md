@@ -20,7 +20,7 @@ in exactly nothing. Every collection example there navigates.
 unless the prompt named a total, a count, or a "how many / how much" figure. It is absent from this
 skeleton on purpose; adding one uninvited pushes the rows down the page and puts a number on screen
 nobody has to be right about. When you do add one, wire it from
-[COLLECTION_TOOLKIT.md](COLLECTION_TOOLKIT.md#summarybar--only-when-the-request-asked-for-one).
+[SKILL.md § Step 2](../../SKILL.md) — no `SummaryBar` unless the request asked for one.
 
 ## The collection page
 
@@ -43,7 +43,7 @@ const STATUS_LABELS: Record<string, string> = { ACTIVE: 'Active', ARCHIVED: 'Arc
 // Filter factories are module-level: one instance per page, not per render.
 const statusFilter = stringsArrayFilter<'ACTIVE' | 'ARCHIVED'>({
   // `name` is NOT the visible title — it feeds a11y legends, BI grouping and dataHooks.
-  // The title comes from the two label props in the JSX below. See COLLECTION_TOOLKIT.md,
+  // The title comes from the two label props in the JSX below. See FILTERS.md,
   // "Naming a filter".
   name: 'Status',
   itemKey: (item) => item,
@@ -101,7 +101,7 @@ export const {Feature}CollectionPage: FC = () => {
                   applied-filter tag, and is what the panel's filter search matches — its
                   fallback is '', i.e. a nameless filter. toolbarItemProps.label is the only
                   source for the inline chip's label and has no fallback either.
-                  Do NOT pass accordionItemProps.title — COLLECTION_TOOLKIT.md explains what
+                  Do NOT pass accordionItemProps.title — FILTERS.md explains what
                   it silently replaces. */}
               <MultiSelectCheckboxFilter
                 filter={statusFilter} collection={statusOptions}
@@ -130,7 +130,7 @@ export const {Feature}CollectionPage: FC = () => {
           onRowClick={(item) => navigateToEntityPage({ path: `/${item.id}`, entity: item })}
           columns={[
             // One column per field the prompt names; verify each source field —
-            // COLLECTION_TOOLKIT.md, "A column must show what its header promises."
+            // DATA_SOURCES.md, "A column must show what its header promises."
             { id: 'name', title: 'Name', render: (item) => item.name },
           ]}
         />

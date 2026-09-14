@@ -28,7 +28,7 @@ compiles, runs, and silently loses schema-driven columns, field management and t
 `EntityPage` / `EntityPageFieldsCard` behind `@wix/patterns/schema`, are all exported and usable,
 and **none appear in `dist/dts-bundle/index.json`**. Looking them up there and concluding they don't exist is how this
 whole path gets missed — check `dist/types/index.d.ts`, which is what `tsc` resolves. See
-[PATTERNS_BUNDLE_READING.md](PATTERNS_BUNDLE_READING.md#what-the-bundle-leaves-out).
+[WIX_PATTERNS_DOCS.md § 5](../WIX_PATTERNS_DOCS.md#5--traps-that-make-a-read-wrong).
 
 ## 1. The schema source
 
@@ -93,7 +93,7 @@ import { Table, useTableCollection } from '@wix/patterns/schema';
 import { usePatternsNavigate } from '@wix/patterns/router';
 import { useCmsSchemaSource } from '@wix/patterns-cms';
 
-export const FeatureCollectionPage: FC = () => {
+export const FeatureCollectionPage: FC<{ onAddItem: () => void }> = ({ onAddItem }) => {
   const { navigateToEntityPage } = usePatternsNavigate<CmsItem>();
   const source = useCmsSchemaSource<CmsItem>({ collectionId: COLLECTION_ID });
 
@@ -105,22 +105,32 @@ export const FeatureCollectionPage: FC = () => {
       <CollectionPage.Header
         title={{ text: 'Page Title' }}
         primaryAction={
-          <PrimaryActions label="Add item" onClick={() => navigateToEntityPage({ path: '/new' })} />
+          <PrimaryActions label="Add item" onClick={onAddItem} />
         }
       />
       <CollectionPage.Content>
         {/* No `columns` prop: the schema renders one column per field. */}
-        <Table state={state} onRowClick={(item) => navigateToEntityPage({ path: '/' + item._id })} />
+        <Table
+          state={state}
+          onRowClick={(item: CmsItem) => navigateToEntityPage({ path: '/' + item._id, entity: item })}
+        />
       </CollectionPage.Content>
     </CollectionPage>
   );
 };
 ```
 
+**`onAddItem` opens the create route** — the one navigation with no record to pass:
+`navigateToEntityPage({ path: '/new' })`, with `entity` omitted. That omission needs
+`@wix/patterns` **≥ 1.464.0**, which the pin in §1 already gives you; on an older install `entity`
+is typed required, and passing a placeholder to satisfy it is the bug rather than the fix. Every
+other navigation has a record — pass it, as `onRowClick` does above, and the entity header renders
+before the fetch resolves.
+
 Two rules carry over unchanged from the hand-wired path, and both are about what is *not* here:
 **no `SummaryBar`** unless the request asked for one, and **the row opens a page** —
 `navigateToEntityPage`, never a `SidePanel`
-([COLLECTION_TOOLKIT.md](COLLECTION_TOOLKIT.md#summarybar--only-when-the-request-asked-for-one)).
+([SKILL.md § Step 2](../../SKILL.md) — no `SummaryBar` unless the request asked for one).
 
 ## 3. Entity page — the same source drives the form
 
@@ -187,4 +197,4 @@ and simply has nothing that writes.
 The parts that aren't about where the data comes from carry over unchanged: MobX and `useSelector`
 ([TABLE_STATE.md](TABLE_STATE.md)), `errorState` on every table, the drill-in requirement, and the
 release-and-update steps a Data Collection needs before the collection exists at all
-([DATA_COLLECTION.md](../DATA_COLLECTION.md#the-extension-does-not-create-the-collection)).
+([DATA_COLLECTION.md](../data-collection/LIFECYCLE.md#the-extension-does-not-create-the-collection)).

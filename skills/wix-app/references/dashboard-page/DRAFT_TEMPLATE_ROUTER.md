@@ -1,6 +1,6 @@
 # Draft Template — Cases A, B and D (router-wired)
 
-**Applies to [DRAFT_TEMPLATE.md](DRAFT_TEMPLATE.md)'s Case A (Collection + read-only detail), Case B (Collection + Entity) and Case D (Collection + Entity + Settings).** All three need `PatternsReactRouter`, because in all three a row opens a page of its own — a panel is not the drill-in ([COLLECTION_TOOLKIT.md](COLLECTION_TOOLKIT.md)). Case A's detail route is read-only and is §4 below; B and D route to a full `EntityPage`. The Collection page and Settings page components themselves are in [DRAFT_TEMPLATE.md](DRAFT_TEMPLATE.md) — this file covers only what's different when a router sits above them: the entry file, the app shell, and the detail/entity page.
+**Applies to [DRAFT_TEMPLATE.md](DRAFT_TEMPLATE.md)'s Case A (Collection + read-only detail), Case B (Collection + Entity) and Case D (Collection + Entity + Settings).** All three need `PatternsReactRouter`, because in all three a row opens a page of its own — a panel is not the drill-in ([UX_SUCCESS_MODEL.md](UX_SUCCESS_MODEL.md)). Case A's detail route is read-only and is §4 below; B and D route to a full `EntityPage`. The Collection page and Settings page components themselves are in [DRAFT_TEMPLATE.md](DRAFT_TEMPLATE.md) — this file covers only what's different when a router sits above them: the entry file, the app shell, and the detail/entity page.
 
 **Case A takes §1, §2 and §4 — not §3.** Its rows open a read-only page; it has no create route, no form and no `useEntityPage` call.
 
@@ -106,10 +106,10 @@ Guessing either costs a compile round.
 
 ## 3. Entity page — one component for both `/new` and `/:id`
 
-Full call details (both generics, what `onSave` receives, the `UseEntityPageParams` pick list) are in [ENTITY_PAGE_TOOLKIT.md](ENTITY_PAGE_TOOLKIT.md) — read it before filling in fields. The part specific to this router-based shape:
+Full call details (both generics, what `onSave` receives, the `UseEntityPageParams` pick list) are in `<pkgRoot>/dist/docs/useEntityPage.md` — read it before filling in fields. The part specific to this router-based shape:
 
 ```tsx
-// {Feature}EntityPage.tsx — Case B or D (sketch — see ENTITY_PAGE_TOOLKIT.md for the full call)
+// {Feature}EntityPage.tsx — Case B or D (sketch — see dist/docs/useEntityPage.md for the full call)
 import { useParams } from 'react-router-dom'; // NOT @wix/patterns/router — PatternsReactRoute wraps react-router-dom's Route, but only exports PatternsReactRoute/PatternsReactRouter/usePatternsNavigate itself
 import { useEntityPage, EntityPage } from '@wix/patterns';
 import { useForm } from '@wix/patterns/form';
@@ -132,7 +132,7 @@ export const {Feature}EntityPage = () => {
     <EntityPage state={state}>
       <EntityPage.Header title={{ text: id ? 'Edit {Entity}' : 'New {Entity}' }} />
       <EntityPage.Content>
-        <EntityPage.MainContent>{/* form cards — see ENTITY_PAGE_TOOLKIT.md */}</EntityPage.MainContent>
+        <EntityPage.MainContent>{/* form cards — see dist/docs/EntityPage.md */}</EntityPage.MainContent>
       </EntityPage.Content>
     </EntityPage>
   );

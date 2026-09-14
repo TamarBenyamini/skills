@@ -65,6 +65,15 @@ kind of defect to catch in review.
 and `requestedRefund` beside it), while per-transaction status is
 `refund.transactions[].refundStatus`. Summing the wrong one silently under-reports.
 
+**A generic-sounding field is not the related entity.** Treat `.title`, `.name` and `.summary` as
+unverified until you read the declaration: an `Extended*` / `*WithDetails` shape exists precisely to
+attach the real related entity, and a summary field on the base item is not a substitute. A column
+must show what its header promises.
+
+**A mapper must cover every shape the response returns.** Responses often carry a oneof — Bookings'
+`bookedEntity` is `slot` for an appointment, `schedule` for a class — and a mapper reading one
+variant renders blank cells for the other while passing `tsc`.
+
 ## Joining two sources for one row
 
 A collection page usually needs one query plus one batch lookup, never a lookup per row:
