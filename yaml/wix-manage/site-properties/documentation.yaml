@@ -3,7 +3,7 @@ apiDoc:
 
   docs:
     - file: ../../../skills/wix-manage/references/site-properties/update-site-regional-properties.md
-      title: Update Site Regional Properties (Currency, Time Zone, Language)
+      title: Update Site Business Region (Payment Currency, Time Zone)
       docsEntry: https://dev.wix.com/docs/api-reference/business-management/site-properties
       tags: [site-properties]
     - file: ../../../skills/wix-manage/references/site-properties/site-properties-dashboard-navigation.md
