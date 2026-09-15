@@ -9,7 +9,27 @@ format itself. For what the automated checks do and how to read a failing one, s
 
 ### Test behavior, not skill text
 
-A scenario tests what the agent *does*, not what the skill *says*. Give it a task-shaped `triggerPrompt` — *"create a product called 'Handmade Ceramic Mug' priced at $24"*, not *"how do I create a product?"* — and assert on the behavior: which APIs it called, what it asked before mutating data, whether the result is correct. Judge the decision the skill exists to drive; if the skill says to ask rather than invent a missing mandatory value, withhold that value and assert the agent asked.
+A scenario is not a test that the skill works. It tests that a real user's intention gets resolved, and that it gets resolved because the skill was there.
+
+So it tests what the agent *does*, not what the skill *says*. Give it a task-shaped `triggerPrompt` — *"create a product called 'Handmade Ceramic Mug' priced at $24"*, not *"how do I create a product?"* — and assert on the behavior: which APIs it called, what it asked before mutating data, whether the result is correct. Judge the decision the skill exists to drive; if the skill says to ask rather than invent a missing mandatory value, withhold that value and assert the agent asked.
+
+### Cover what the skill is for
+
+A scenario is the strongest evidence we have that a skill is worth having. It puts a real request to an agent, and shows that the request got resolved *because the skill was there*. Once merged it keeps running, so it is also the thing that tells us when a later change breaks the skill. A skill whose scenarios would pass without it has neither.
+
+So aim the coverage at what the skill exists to settle:
+
+- **Start from an intention, not a feature.** Write the `triggerPrompt` as the request a user would actually send — the outcome they want, in their words, with the details they would have to hand. Not the API name, not the steps, not the skill's own vocabulary.
+- **Reach the parts that would hurt if they broke.** One scenario per skill is the floor, not the target. Where the skill carries a decision — a branch, a precondition, an order that matters, a value the agent must ask for rather than invent — a scenario that never reaches that decision leaves it unproven, and a regression there will merge green.
+- **Make the skill the reason it passes.** Ask what a run without the skill would look like. If a capable agent would land in the same place anyway, the scenario is measuring the platform, not the skill. Point the assertions at what the skill is the only source of: the order, the wrapper, the precondition, the question it asks before mutating data.
+
+### Test a real user conversation
+
+A scenario is a single request with no conversation around it. The agent gets the `triggerPrompt`, runs once, and the assertions judge the result — there is no follow-up turn to answer a clarifying question with, and nothing the user said earlier.
+
+Prefer prompts that need none of that. But a real request is sometimes one a user would only send *after* something the run cannot reproduce: an identifier they are holding, a choice they already made, a value from a system outside Wix. Where that is the case, put that context in the prompt the way the earlier turn would have delivered it — the least that makes the request answerable, phrased as the user would phrase it. The prompt must still read as something a user sent, not as a briefing written for the agent.
+
+**This is not a way around provisioning the site.** The apps, the content, and the state the task operates on belong in [`siteSetup`](#site-provisioning-optional) and its `bootstrap` steps, which stand up a real site for the agent to work against. Describing that state in the prompt instead — *"assume the store already has three products"*, or an ID for a product nothing created — leaves the agent with nothing to call and the judge grading a run against a site that does not exist. Provision the state; put only the conversation in the prompt.
 
 ### Assert correctness *and* quality
 
@@ -78,25 +98,27 @@ Beyond these three, you can add other assertions (`api_call`, `cost`, `time_limi
 ### Example
 
 ```yaml
-name: domains/domain-search-and-purchase
-description: Verifies the agent reads the domain-search-and-purchase docs when asked about searching for and purchasing a domain via the Wix API.
-triggerPrompt: How do I programmatically search for an available domain on Wix and then purchase it? Please reference the relevant API methods.
+name: domains/domain-search-purchase-and-connect
+description: Verifies the agent reads the domain-search-purchase-and-connect docs when asked about purchasing a new domain or connecting a domain that the user already owns.
+triggerPrompt: I want to purchase a domain and connect it to the Wix site.
 tags: [domains]
 maxTokens: 25000
 assertions:
   - tool: ReadFullDocsArticle
     params:
-      articleUrl: https://dev.wix.com/docs/api-reference/account-level/domains/skills/domain-search-and-purchase
+      articleUrl: https://dev.wix.com/docs/api-reference/account-level/domains/skills/domain-search-purchase-and-connect
   - type: llm_judge
     minScore: 7
     maxTokens: 2048
     prompt: |
-      The user's request: "How do I programmatically search for an available domain on Wix and then purchase it? Please reference the relevant API methods."
-      Intent: surface Wix Domains Management API methods/endpoints for searching availability and purchasing a domain.
+      The user's request: "I want to purchase a domain and connect it to the Wix site."
+      Intent: brainstorm a domain name, purchase it and / or connect a domain to the Wix site.
 
       Pass if the response:
-      - mentions specific Wix API endpoints, method names, or REST paths from the Wix Domains Management API for search and/or purchase, AND
-      - describes the high-level flow (search → check availability → purchase) using terminology consistent with the docs.
+      - mentions the domain availability OR
+      - suggests domain list OR
+      - mentions user's sites list OR
+      - domain prices       
 
       Fail if the response:
       - is generic with no specific endpoints or method names, OR
@@ -224,7 +246,7 @@ Beyond these three, `wix-app` scenarios often add `build_passed`, and you can us
 A `wix-app` scenario usually scaffolds its starter project from a **file template** — the top-level `templateId`, an EvalForge template (id or alias). It maps to `templateId` on the EvalForge run:
 
 ```yaml
-templateId: 33f2cb85-054e-4281-b617-3bc21ac0803f
+templateId: c0ee6fd2-5265-4c57-b083-4f1308ff5ffa
 ```
 
 This is the **default template all wix-app runs start from**.
@@ -233,7 +255,7 @@ This is the **default template all wix-app runs start from**.
 
 ### Example
 
-See [`yaml/wix-app-evals/employee-shift-dashboard.yml`](../yaml/wix-app-evals/employee-shift-dashboard.yml) for a real scenario — it also demonstrates the negative-dependency pattern from [Tagging](#tagging) above (asserting `AUTO_PATTERNS_DASHBOARD.md` and `DATA_COLLECTION.md` were used, and `DASHBOARD_PAGE.md` was not).
+See [`yaml/wix-app-evals/employee-shift-dashboard.yml`](../yaml/wix-app-evals/employee-shift-dashboard.yml) for a real scenario — it asserts `DASHBOARD_PAGE.md`, `WIX_PATTERNS_DOCS.md`, and `DATA_COLLECTION.md` were all used, then pairs a correctness judge with a quality judge that enforces the patterns-first component selection rule.
 
 ## Common Scenario Fields
 

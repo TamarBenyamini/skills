@@ -3,24 +3,24 @@ import * as github from '@actions/github';
 import { EvalForgeClient, draftTagFor, formatGateSkipped } from '@wix/evalforge-core';
 import { getGateConfig } from './config';
 import { workspaceRoot } from './workspace';
-import { guardedCall, makeGateCommenter } from './report';
+import { guardedCall, makeAnalysisUpdater, makeGateCommenter } from './report';
 import { checkPrAuthor } from './pr-lookups';
 import { resolveGateScope } from './gate-scope';
 import { syncDraftScenarios } from './sync-draft-scenarios';
 import { runAndReport } from './run-and-report';
 
 export async function runGate(): Promise<void> {
+  // No recovery path here any more: the head repository is on the payload, so the gate always
+  // has an answer. There is no lookup to fail and nothing for a `blocking` run to trip over.
   const config = getGateConfig();
   const octokit = github.getOctokit(config.githubToken);
   const comment = makeGateCommenter(octokit, config);
 
-  // First, so a fork PR costs nothing. Skips rather than fails, including when the lookup
-  // errors — a GitHub blip must not turn into a red check. Says so on the PR, since otherwise
-  // a green check would look like a pass.
-  const author = await checkPrAuthor(octokit, config);
+  // First, so a fork PR costs nothing. Skips rather than fails, and says so on the PR,
+  // since otherwise a green check would look like a pass.
+  const author = checkPrAuthor(config);
   if (!author.allowed) {
-    const log = author.isUnexpected ? core.warning : core.info;
-    log(`Skipping wix-app eval gate — ${author.reason}`);
+    core.info(`Skipping wix-app eval gate — ${author.reason}`);
     await comment(formatGateSkipped(author.reason));
     return;
   }
@@ -52,5 +52,8 @@ export async function runGate(): Promise<void> {
   );
   if (!nameToId.ok) return;
 
-  await runAndReport(client, config, scope.value, nameToId.value, version.value.id, comment);
+  await runAndReport(
+    client, config, scope.value, nameToId.value, version.value.id, comment,
+    makeAnalysisUpdater(octokit, config),
+  );
 }

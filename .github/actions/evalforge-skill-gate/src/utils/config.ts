@@ -4,6 +4,7 @@ import * as github from '@actions/github';
 import {
   DEFAULT_BASE_ARM_GRACE_SECONDS, DEFAULT_BROAD_IMPACT_GLOBS, DEFAULT_IGNORE_GLOBS, DEFAULT_MAX_SCENARIOS,
   DEFAULT_REFERENCE_DIR, DEFAULT_RUNS_PER_SCENARIO, ensureHttps, safeGetSecret, getPrNumber,
+  readHeadRepoFullName,
 } from '@wix/evalforge-core';
 
 /** Subdirectory the base-SHA checkout lands in, matching the yaml-gate workflows. */
@@ -45,6 +46,8 @@ export type SyncConfig = {
   repo: string;
   githubToken: string;
   prNumber: number;
+  /** Where the PR's head branch lives; `null` if that repository is gone. */
+  headRepoFullName: string | null;
 };
 
 export function getSyncConfig(): SyncConfig {
@@ -57,6 +60,7 @@ export function getSyncConfig(): SyncConfig {
     repo: `${github.context.repo.owner}/${github.context.repo.repo}`,
     githubToken: core.getInput('github-token', { required: true }),
     prNumber: getPrNumber(github.context.payload),
+    headRepoFullName: readHeadRepoFullName(github.context.payload),
   };
 }
 
@@ -90,6 +94,8 @@ export type GateConfig = {
   baseSha: string;
   comparisonGroupId: string;
   runsPerScenario: number;
+  /** Where the PR's head branch lives; `null` if that repository is gone. */
+  headRepoFullName: string | null;
   /** Milliseconds, converted once here from the `base-arm-grace-seconds` input — see `getBaseArmGraceSeconds`. */
   baseArmGraceMs: number;
 };
@@ -275,6 +281,37 @@ export function getGateConfig(): GateConfig {
     comparisonGroupId: randomUUID(),
     runsPerScenario,
     baseArmGraceMs: getBaseArmGraceSeconds() * 1_000,
+    headRepoFullName: readHeadRepoFullName(github.context.payload),
+  };
+}
+
+/** Analyze mode reads no repo files, so it needs no skill dir, glob, capability, agent or shas. */
+export type AnalyzeConfig = {
+  evalforgeUrl: string;
+  projectId: string;
+  appId: string;
+  appSecret: string;
+  githubToken: string;
+  owner: string;
+  repo: string;
+  prNumber: number;
+  evalRunId: string;
+};
+
+export function getAnalyzeConfig(): AnalyzeConfig {
+  const owner = github.context.repo.owner;
+  const repo = github.context.repo.repo;
+
+  return {
+    evalforgeUrl: ensureHttps(core, core.getInput('evalforge-url', { required: true })),
+    projectId: core.getInput('evalforge-project-id', { required: true }),
+    appId: safeGetSecret(core, 'evalforge-app-id'),
+    appSecret: safeGetSecret(core, 'evalforge-app-secret'),
+    githubToken: safeGetSecret(core, 'github-token'),
+    owner,
+    repo,
+    prNumber: getPrNumber(github.context.payload),
+    evalRunId: core.getInput('eval-run-id', { required: true }),
   };
 }
 
@@ -293,3 +330,4 @@ export function getCleanupConfig(): CleanupConfig {
     prNumber: getPrNumber(github.context.payload),
   };
 }
+

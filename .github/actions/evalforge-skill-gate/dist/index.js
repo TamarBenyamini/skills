@@ -30088,32 +30088,62 @@ exports.TokenProvider = TokenProvider;
 
 "use strict";
 
+/**
+ * Whether a PR's author may spend an eval run.
+ *
+ * The question this asks is "did the author have push access to this repository",
+ * answered by where the PR's head branch lives. Only someone with push access can
+ * create a branch in the repo itself; everyone else must fork, and a fork's head
+ * lives in their own namespace. The author cannot forge that — unlike a commit
+ * author email, which is free text copied from `user.email`.
+ *
+ * **`author_association` does not work for this**, which is worth recording because it
+ * looks like it should. That field is viewer-relative: GitHub computes the copy in an
+ * Actions webhook payload without visibility into private org membership, so a member
+ * whose membership is private is reported as `CONTRIBUTOR`. Measured on wix/skills, every
+ * recent PR author reads `MEMBER` to an authenticated viewer and `CONTRIBUTOR` to the
+ * payload, because none of them is a *public* org member. A gate on that field refuses
+ * everybody.
+ *
+ * This check is the same one the workflows already apply at the job level
+ * (`github.event.pull_request.head.repo.full_name == github.repository`), so the action
+ * agrees with its own trigger rather than inventing a second notion of trust.
+ */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.isWixAuthorEmail = isWixAuthorEmail;
-exports.getFirstCommitAuthorEmail = getFirstCommitAuthorEmail;
-exports.assertWixAuthor = assertWixAuthor;
-const WIX_EMAIL_RE = /@wix\.com$/i;
-function isWixAuthorEmail(email) {
-    return typeof email === 'string' && WIX_EMAIL_RE.test(email.trim());
+exports.readHeadRepoFullName = readHeadRepoFullName;
+exports.isSameRepoBranch = isSameRepoBranch;
+exports.assertSameRepoBranch = assertSameRepoBranch;
+/**
+ * The full name (`owner/repo`) of the repository holding the PR's head branch.
+ *
+ * `null` when GitHub reports no head repository. Per its payload schema `head.repo` is
+ * `oneOf: [repository, null]`, and it goes null when the source fork has been deleted.
+ * That is a real, reachable state rather than a malformed payload — and it is emphatically
+ * not this repository, so it reads as a refusal rather than an error.
+ */
+function readHeadRepoFullName(payload) {
+    const fullName = payload.pull_request?.head?.repo?.full_name;
+    return typeof fullName === 'string' && fullName.trim() !== '' ? fullName : null;
 }
-async function getFirstCommitAuthorEmail(octokit, owner, repo, prNumber) {
-    // listCommits returns the PR's commits oldest-first; we only need the first,
-    // so ask for a single-item page rather than paginating the whole PR.
-    const { data } = await octokit.rest.pulls.listCommits({
-        owner,
-        repo,
-        pull_number: prNumber,
-        per_page: 1,
-    });
-    return data[0]?.commit?.author?.email ?? undefined;
+/**
+ * True when the PR's head branch lives in this repository, which means its author had
+ * push access here.
+ *
+ * Compared case-insensitively: GitHub treats owner and repository names that way, and a
+ * gate should not turn on the casing of a string it did not choose.
+ */
+function isSameRepoBranch(headRepoFullName, owner, repo) {
+    if (headRepoFullName === null)
+        return false;
+    return headRepoFullName.trim().toLowerCase() === `${owner}/${repo}`.toLowerCase();
 }
-async function assertWixAuthor(octokit, owner, repo, prNumber, log) {
-    const email = await getFirstCommitAuthorEmail(octokit, owner, repo, prNumber);
-    if (!isWixAuthorEmail(email)) {
-        throw new Error(`PR author gate failed: the PR's first-commit author email (${email ?? 'unknown'}) ` +
-            `is not a @wix.com address. This gate is restricted to Wix authors.`);
+function assertSameRepoBranch(headRepoFullName, owner, repo, log) {
+    if (!isSameRepoBranch(headRepoFullName, owner, repo)) {
+        throw new Error(`PR author gate failed: this pull request's head branch is in ` +
+            `${headRepoFullName ?? 'a repository that no longer exists'}, not ${owner}/${repo}. ` +
+            `This gate is restricted to branches pushed to ${owner}/${repo}, which requires write access.`);
     }
-    log?.(`Author gate passed — first-commit author email: ${email}`);
+    log?.(`Author gate passed — head branch is in ${owner}/${repo}, so its author has write access.`);
 }
 
 
@@ -30526,6 +30556,10 @@ const MAX_QUERY_CONCURRENCY = 8;
 // API base (the internal `/_api/evalforge-backend` gateway). The token is minted
 // here, then used as a Bearer credential against the V1 API at `baseUrl`.
 const OAUTH_TOKEN_URL = 'https://www.wixapis.com/oauth2/token';
+const DEFAULT_TIMEOUT_MS = 15_000;
+// The server's own analysis budget is 57s, so the default would abort every analysis client-side
+// moments before it returned.
+const ANALYZE_TIMEOUT_MS = 75_000;
 exports.TERMINAL_RUN_STATUSES = ['completed', 'failed', 'cancelled'];
 function contentBody(content) {
     if (content.kind === 'skill')
@@ -30634,6 +30668,30 @@ function toAssertionStatus(rawStatus) {
         : rawStatus;
     return ASSERTION_STATUSES.find(candidate => candidate === unprefixedStatus) ?? 'UNKNOWN';
 }
+const RUN_ANALYSIS_CATEGORIES = [
+    'FAILURE_PATTERN', 'COST_WASTE', 'FLAKINESS', 'INEFFICIENCY', 'POSITIVE',
+    'WRONG_TOOL_CALL', 'TOOL_OUTPUT_ERROR', 'DOCS_ERROR', 'SKILL_MISGUIDANCE',
+];
+const RUN_ANALYSIS_SEVERITIES = ['HIGH', 'MEDIUM', 'LOW'];
+// These are nested proto enums, so unlike AssertionResultStatus their members carry no enum-name
+// prefix and the wire value is bare. proto3 omits a zero-valued enum, making an absent field as
+// ordinary as the explicit UNKNOWN_CATEGORY / UNKNOWN_SEVERITY members — both, and any future or
+// malformed value, land on UNKNOWN so nothing is invented as HIGH.
+function toEnumMember(raw, members) {
+    if (typeof raw !== 'string')
+        return 'UNKNOWN';
+    return members.find(candidate => candidate === raw) ?? 'UNKNOWN';
+}
+function toRunAnalysisFinding(raw) {
+    return {
+        category: toEnumMember(raw?.category, RUN_ANALYSIS_CATEGORIES),
+        severity: toEnumMember(raw?.severity, RUN_ANALYSIS_SEVERITIES),
+        description: raw?.description ?? '',
+        affectedScenarios: toRowArray(raw?.affectedScenarios)
+            .filter((scenario) => typeof scenario === 'string'),
+        ...(raw?.recommendation === undefined ? {} : { recommendation: raw.recommendation }),
+    };
+}
 function toAssertionOutcome(rawAssertionResult) {
     return {
         assertionName: rawAssertionResult?.assertionName ?? '(unnamed)',
@@ -30682,7 +30740,7 @@ class EvalForgeClient {
         // Token is minted at the fixed public endpoint, NOT under `baseUrl`.
         this.tokens = new auth_1.TokenProvider(OAUTH_TOKEN_URL, clientId, clientSecret);
     }
-    send(method, path, body, token) {
+    send(method, path, body, token, timeoutMs) {
         return fetch(`${this.baseUrl}/v1${path}`, {
             method,
             headers: {
@@ -30690,15 +30748,15 @@ class EvalForgeClient {
                 Authorization: `Bearer ${token}`,
             },
             body: body !== undefined ? JSON.stringify(body) : undefined,
-            signal: AbortSignal.timeout(15_000),
+            signal: AbortSignal.timeout(timeoutMs),
         });
     }
-    async request(method, path, body) {
+    async request(method, path, body, timeoutMs = DEFAULT_TIMEOUT_MS) {
         const token = await this.tokens.getToken();
-        let res = await this.send(method, path, body, token);
+        let res = await this.send(method, path, body, token, timeoutMs);
         if (res.status === 401) {
             // Token rejected before its computed expiry — mint a fresh one and retry once.
-            res = await this.send(method, path, body, await this.tokens.forceRefresh(token));
+            res = await this.send(method, path, body, await this.tokens.forceRefresh(token), timeoutMs);
         }
         if (!res.ok) {
             const err = (await res.json().catch(() => ({})));
@@ -30854,6 +30912,17 @@ class EvalForgeClient {
             results: toRowArray(r.results).map(toResultRow),
         };
     }
+    // --- Analysis ---
+    /** Requires a COMPLETED run; anything else is a 400. The result is persisted on the run. */
+    async analyzeEvalRun(projectId, runId) {
+        const res = await this.request('POST', `/projects/${enc(projectId)}/eval-runs/${enc(runId)}/analyze`, {}, ANALYZE_TIMEOUT_MS);
+        const raw = res.runAnalysis ?? {};
+        return {
+            ...(raw.generatedAt === undefined ? {} : { generatedAt: raw.generatedAt }),
+            summary: raw.summary ?? '',
+            findings: toRowArray(raw.findings).map(toRunAnalysisFinding),
+        };
+    }
     async deleteCapabilityVersion(capabilityId, projectId, versionId) {
         await this.request('DELETE', `/projects/${enc(projectId)}/capabilities/${enc(capabilityId)}/versions/${enc(versionId)}`);
     }
@@ -30971,6 +31040,216 @@ function foldScenarioIterations(rows) {
         });
     }
     return outcomes;
+}
+
+
+/***/ }),
+
+/***/ 9131:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MAX_COMMENT_BODY_LENGTH = exports.ANALYSIS_COMMENT_MARKER = void 0;
+exports.formatAnalysisComment = formatAnalysisComment;
+exports.formatAnalysisUnavailable = formatAnalysisUnavailable;
+exports.formatAnalysisSuperseded = formatAnalysisSuperseded;
+exports.ANALYSIS_COMMENT_MARKER = '<!-- evalforge-skill-analysis-action -->';
+/**
+ * Budget for the rendered body. GitHub rejects a comment over 65536 characters with a 422, and
+ * `makeCommenter` degrades that to the job summary — so an unbudgeted body does not fail the job,
+ * it silently loses the PR comment. The margin absorbs the fixed scaffolding.
+ */
+exports.MAX_COMMENT_BODY_LENGTH = 60_000;
+/** One 100k narrative must not be able to crowd out every finding. */
+const MAX_SUMMARY_LENGTH = 12_000;
+const TEASER_LENGTH = 300;
+/**
+ * Safety net for the note that explains why no analysis arrived. Its reasons are short mapped
+ * sentences, so this bounds only a caller that passes something unbounded through.
+ */
+const MAX_REASON_LENGTH = 500;
+/** Room for the omission notice, so trimming findings can never itself overflow the budget. */
+const OMISSION_NOTICE_RESERVE = 160;
+const HEADING = 'EvalForge: AI Investigation';
+const CATEGORY_LABELS = {
+    FAILURE_PATTERN: 'Failure pattern',
+    COST_WASTE: 'Cost waste',
+    FLAKINESS: 'Flakiness',
+    INEFFICIENCY: 'Inefficiency',
+    POSITIVE: 'Strength',
+    WRONG_TOOL_CALL: 'Wrong tool call',
+    TOOL_OUTPUT_ERROR: 'Tool output error',
+    DOCS_ERROR: 'Docs error',
+    SKILL_MISGUIDANCE: 'Skill misguidance',
+    UNKNOWN: 'Uncategorised',
+};
+const SEVERITY_LABELS = {
+    HIGH: '🔴 High',
+    MEDIUM: '🟠 Medium',
+    LOW: '🟡 Low',
+    UNKNOWN: '',
+};
+const SEVERITY_RANK = {
+    HIGH: 0, MEDIUM: 1, LOW: 2, UNKNOWN: 3,
+};
+function render(body) {
+    return [exports.ANALYSIS_COMMENT_MARKER, `## 🔍 ${HEADING}`, '', ...body].join('\n');
+}
+/** `2026-08-12T14:03:22.512Z` → `2026-08-12 14:03 UTC`. Absent for a value the wire mangled. */
+function formatGeneratedAt(generatedAt) {
+    const parsed = new Date(generatedAt);
+    if (Number.isNaN(parsed.getTime()))
+        return undefined;
+    return `${parsed.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
+function runLine(runId, runUrl, generatedAt) {
+    const stamp = generatedAt === undefined ? undefined : formatGeneratedAt(generatedAt);
+    const suffix = stamp === undefined ? '' : ` · ${stamp}`;
+    return `<sub>Generated for <a href="${runUrl}">eval run ${runId}</a>${suffix}</sub>`;
+}
+/**
+ * GitHub honours a `</details>` from inside the fold, unfolding every finding after it. Matched
+ * loosely because `</DETAILS>` and `</details >` close it just as well as the canonical spelling.
+ */
+function neutraliseFoldEnd(text) {
+    return text.replaceAll(/<\/\s*details\s*>/gi, '&lt;/details&gt;');
+}
+/** Positives last: a reader opening this comment is here for what broke. */
+function sortFindings(findings) {
+    return [...findings].sort((left, right) => {
+        const positive = Number(left.category === 'POSITIVE') - Number(right.category === 'POSITIVE');
+        return positive !== 0 ? positive : SEVERITY_RANK[left.severity] - SEVERITY_RANK[right.severity];
+    });
+}
+function tally(findings) {
+    const problems = findings.filter(candidate => candidate.category !== 'POSITIVE');
+    const counts = [
+        ['high', problems.filter(candidate => candidate.severity === 'HIGH').length],
+        ['medium', problems.filter(candidate => candidate.severity === 'MEDIUM').length],
+        ['low', problems.filter(candidate => candidate.severity === 'LOW').length],
+        ['positive', findings.length - problems.length],
+    ];
+    const parts = counts.filter(([, count]) => count > 0).map(([label, count]) => `${count} ${label}`);
+    const noun = findings.length === 1 ? 'finding' : 'findings';
+    return `**${findings.length} ${noun}**${parts.length > 0 ? ` — ${parts.join(', ')}.` : '.'}`;
+}
+/** Cuts at a word boundary so a truncated string never ends mid-word. */
+function truncateWords(text, limit) {
+    if (text.length <= limit)
+        return text;
+    const cut = text.slice(0, limit);
+    const lastSpace = cut.lastIndexOf(' ');
+    return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+/** The above-fold extract: the summary's first paragraph, cut to the teaser budget. */
+function teaserText(summary) {
+    const firstParagraph = summary.trim().split('\n\n')[0]?.trim() ?? '';
+    return firstParagraph === '' ? '' : neutraliseFoldEnd(truncateWords(firstParagraph, TEASER_LENGTH));
+}
+function teaserLines(teaser) {
+    return teaser === '' ? [] : ['', teaser];
+}
+function findingBlock(finding) {
+    // A positive finding sits outside the severity counts in the tally, so labelling it "🔴 High"
+    // here would have the heading and the body disagree about the same finding.
+    const severity = finding.category === 'POSITIVE' ? '' : SEVERITY_LABELS[finding.severity];
+    const category = CATEGORY_LABELS[finding.category];
+    const lines = [
+        '',
+        `### ${severity === '' ? category : `${severity} · ${category}`}`,
+        '',
+        neutraliseFoldEnd(finding.description),
+    ];
+    if (finding.affectedScenarios.length > 0) {
+        lines.push('', `**Scenarios:** ${finding.affectedScenarios.map(name => `\`${name}\``).join(', ')}`);
+    }
+    if (finding.recommendation !== undefined && finding.recommendation !== '') {
+        lines.push('', `**Recommendation:** ${neutraliseFoldEnd(finding.recommendation)}`);
+    }
+    return lines;
+}
+/**
+ * Drops whole findings from the tail until the body fits. The sort puts the most serious first, so
+ * what survives truncation is the material worth reading; the tally and run link sit outside the
+ * fold and are never dropped, which is what keeps a truncated comment actionable.
+ */
+function foldedDetail(summary, findings, fixedLength, teaser) {
+    const cappedSummary = neutraliseFoldEnd(truncateWords(summary.trim(), MAX_SUMMARY_LENGTH));
+    // A single short paragraph is shown whole by the teaser, so repeating it here reads as a
+    // rendering bug. Compared as rendered strings rather than by re-deriving the two budgets, so the
+    // rule cannot drift if either changes. A truncated teaser still overlaps the full text below,
+    // which is intended — an excerpt, then the narrative.
+    const summaryLines = cappedSummary === teaser ? [] : ['', cappedSummary];
+    // The blank line after `</summary>` is required, or GitHub renders the enclosed markdown
+    // literally. It comes from `summaryLines`, the first finding block, the notice or the footer —
+    // every one of them opens with one.
+    const header = ['', '<details>', '<summary>Full investigation</summary>'];
+    const footer = ['', '</details>'];
+    const lengthOf = (lines) => lines.join('\n').length;
+    let budget = exports.MAX_COMMENT_BODY_LENGTH
+        - fixedLength
+        - lengthOf([...header, ...summaryLines, ...footer])
+        - OMISSION_NOTICE_RESERVE;
+    const kept = [];
+    let dropped = 0;
+    for (const candidate of findings) {
+        const block = findingBlock(candidate);
+        const cost = lengthOf(block) + 1;
+        if (cost > budget) {
+            dropped += 1;
+            continue;
+        }
+        budget -= cost;
+        kept.push(...block);
+    }
+    const notice = dropped === 0 ? [] : [
+        '',
+        `_${dropped} finding${dropped === 1 ? '' : 's'} omitted — `
+            + 'see the full analysis in EvalForge._',
+    ];
+    return [...header, ...summaryLines, ...kept, ...notice, ...footer];
+}
+function formatAnalysisComment(input) {
+    const { analysis, runId, runUrl } = input;
+    const findings = sortFindings(analysis.findings);
+    const footer = ['', runLine(runId, runUrl, analysis.generatedAt)];
+    const teaser = teaserText(analysis.summary);
+    if (findings.length === 0) {
+        return render([
+            'No findings — the investigation surfaced nothing to act on.',
+            ...teaserLines(teaser),
+            ...footer,
+        ]);
+    }
+    const above = [tally(findings), ...teaserLines(teaser)];
+    const fixedLength = render([...above, ...footer]).length;
+    return render([
+        ...above,
+        ...foldedDetail(analysis.summary, findings, fixedLength, teaser),
+        ...footer,
+    ]);
+}
+function formatAnalysisUnavailable(input) {
+    return render([
+        `The AI investigation could not be generated: ${truncateWords(input.reason, MAX_REASON_LENGTH)}.`,
+        '',
+        'This does not affect the gate verdict.',
+        '',
+        runLine(input.runId, input.runUrl),
+    ]);
+}
+/**
+ * Retracts an investigation of a run a later push has superseded. Posted by the gate when the run
+ * comes back clean, so a green verdict is never left sitting above a stale list of findings.
+ */
+function formatAnalysisSuperseded(input) {
+    return render([
+        'The earlier investigation no longer applies — the latest run had no failing assertions.',
+        '',
+        runLine(input.runId, input.runUrl),
+    ]);
 }
 
 
@@ -31413,6 +31692,7 @@ __exportStar(__nccwpck_require__(3308), exports);
 __exportStar(__nccwpck_require__(8833), exports);
 __exportStar(__nccwpck_require__(3460), exports);
 __exportStar(__nccwpck_require__(5970), exports);
+__exportStar(__nccwpck_require__(9131), exports);
 __exportStar(__nccwpck_require__(1985), exports);
 __exportStar(__nccwpck_require__(1372), exports);
 
@@ -31824,8 +32104,12 @@ async function getChangedFiles(octokit, owner, repo, prNumber) {
  * Upserts a single marked PR comment, so repeated runs edit one comment rather than
  * spamming the thread. Never throws: a comment is a report, and losing it must not fail
  * the gate — the body goes to the job summary instead.
+ *
+ * `createIfMissing: false` makes it update-only: it retracts or rewrites a comment already on the
+ * PR and does nothing when there is none, so a body that only makes sense as a replacement cannot
+ * introduce itself.
  */
-function makeCommenter(octokit, target, io) {
+function makeCommenter(octokit, target, io, options = {}) {
     let cachedId;
     let resolved = false;
     async function findExistingId() {
@@ -31852,6 +32136,9 @@ function makeCommenter(octokit, target, io) {
                 });
             }
             else {
+                if (options.createIfMissing === false) {
+                    return;
+                }
                 const created = await octokit.rest.issues.createComment({
                     owner: target.owner, repo: target.repo, issue_number: target.prNumber, body,
                 });
@@ -61934,12 +62221,14 @@ const core = __importStar(__nccwpck_require__(7484));
 const sync_run_1 = __nccwpck_require__(5466);
 const gate_run_1 = __nccwpck_require__(4734);
 const cleanup_run_1 = __nccwpck_require__(5717);
-// Modes for the wix-app skill flows: the per-PR eval gate, its PR-close cleanup, and
-// merge-time scenario sync. See README.md for the full flow of each.
+const analyze_run_1 = __nccwpck_require__(1869);
+// Modes for the wix-app skill flows: the per-PR eval gate, its post-gate AI investigation,
+// its PR-close cleanup, and merge-time scenario sync. See README.md for the full flow of each.
 const modes = {
     sync: sync_run_1.runSync,
     gate: gate_run_1.runGate,
     cleanup: cleanup_run_1.runCleanup,
+    analyze: analyze_run_1.runAnalyze,
 };
 const mode = core.getInput('mode') || 'sync';
 const handler = modes[mode];
@@ -61948,6 +62237,122 @@ if (!handler) {
 }
 else {
     handler().catch(err => core.setFailed(err instanceof Error ? err.message : String(err)));
+}
+
+
+/***/ }),
+
+/***/ 1869:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.runAnalyze = runAnalyze;
+const core = __importStar(__nccwpck_require__(7484));
+const github = __importStar(__nccwpck_require__(3228));
+const evalforge_core_1 = __nccwpck_require__(7495);
+const config_1 = __nccwpck_require__(7799);
+const report_1 = __nccwpck_require__(7267);
+/**
+ * Posts EvalForge's AI investigation of a completed run to its own PR comment.
+ *
+ * Past the config read, nothing here calls `core.setFailed`: the investigation is advisory and
+ * runs in its own job, so a red check beside a green gate would misrepresent the PR. A missing
+ * input is the exception — it leaves no comment channel to report through, so it fails loudly
+ * rather than going silently green.
+ */
+async function runAnalyze() {
+    const config = (0, config_1.getAnalyzeConfig)();
+    const octokit = github.getOctokit(config.githubToken);
+    const comment = (0, report_1.makeAnalysisCommenter)(octokit, config);
+    const runUrl = (0, evalforge_core_1.evalRunUrl)(config.projectId, config.evalRunId);
+    const client = new evalforge_core_1.EvalForgeClient(config.evalforgeUrl, config.appId, config.appSecret);
+    const body = await buildBody(client, config, runUrl);
+    try {
+        await comment(body);
+    }
+    catch (error) {
+        // `makeCommenter` already degrades to the job summary; this catches anything it cannot.
+        core.warning(`Could not post the AI investigation comment: ${(0, report_1.describeError)(error)}`);
+    }
+}
+async function buildBody(client, config, runUrl) {
+    const unavailable = (reason) => (0, evalforge_core_1.formatAnalysisUnavailable)({ reason, runId: config.evalRunId, runUrl });
+    try {
+        const analysis = await client.analyzeEvalRun(config.projectId, config.evalRunId);
+        if (analysis.summary.trim() === '' && analysis.findings.length === 0) {
+            core.warning('EvalForge returned an empty analysis for this run.');
+            return unavailable('EvalForge returned an empty analysis');
+        }
+        return (0, evalforge_core_1.formatAnalysisComment)({ analysis, runId: config.evalRunId, runUrl });
+    }
+    catch (error) {
+        core.warning(`The AI investigation failed: ${(0, report_1.describeError)(error)}`);
+        return unavailable(describeUnavailable(error));
+    }
+}
+/**
+ * A plain sentence per case the comment can name, and a generic one otherwise. The client's own
+ * message is never repeated on the PR: it reads like a stack trace for a routine refusal, and it
+ * can carry upstream-authored text that `core.setSecret` masks in logs but not in a comment body.
+ */
+function describeUnavailable(error) {
+    if (isTimeout(error))
+        return 'EvalForge timed out';
+    if ((0, evalforge_core_1.isHttpError)(error)) {
+        if (error.status === 400)
+            return 'the eval run had not finished when the investigation ran';
+        // Named rather than folded into the generic case: a permission the app was never granted is
+        // the one failure that makes every run report the same thing forever, and the gateway rejects
+        // it with an HTML page carrying no usable message of its own.
+        if (error.status === 401 || error.status === 403) {
+            return 'EvalForge refused the request — the pipeline app may be missing the '
+                + '`evalforge:v1:eval_run:analyze_eval_run` permission';
+        }
+        if (error.status === 408 || error.status === 504)
+            return 'EvalForge timed out';
+        if (error.status >= 500)
+            return 'EvalForge returned an unexpected error';
+    }
+    return 'EvalForge could not complete the investigation';
+}
+/** `AbortSignal.timeout` rejects with a `TimeoutError`, an explicit abort with an `AbortError`. */
+function isTimeout(error) {
+    return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
 }
 
 
@@ -62436,6 +62841,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.MAX_TOTAL_SCENARIO_EXECUTIONS = exports.MAX_BASE_ARM_GRACE_SECONDS = exports.MAX_RUNS_PER_SCENARIO = exports.MAX_SCENARIOS_CEILING = exports.BASE_WORKSPACE_SUBDIR = void 0;
 exports.getSyncConfig = getSyncConfig;
 exports.getGateConfig = getGateConfig;
+exports.getAnalyzeConfig = getAnalyzeConfig;
 exports.getCleanupConfig = getCleanupConfig;
 const node_crypto_1 = __nccwpck_require__(7598);
 const core = __importStar(__nccwpck_require__(7484));
@@ -62476,6 +62882,7 @@ function getSyncConfig() {
         repo: `${github.context.repo.owner}/${github.context.repo.repo}`,
         githubToken: core.getInput('github-token', { required: true }),
         prNumber: (0, evalforge_core_1.getPrNumber)(github.context.payload),
+        headRepoFullName: (0, evalforge_core_1.readHeadRepoFullName)(github.context.payload),
     };
 }
 /** Newline-separated list input, falling back to `fallback` when blank. */
@@ -62632,6 +63039,22 @@ function getGateConfig() {
         comparisonGroupId: (0, node_crypto_1.randomUUID)(),
         runsPerScenario,
         baseArmGraceMs: getBaseArmGraceSeconds() * 1_000,
+        headRepoFullName: (0, evalforge_core_1.readHeadRepoFullName)(github.context.payload),
+    };
+}
+function getAnalyzeConfig() {
+    const owner = github.context.repo.owner;
+    const repo = github.context.repo.repo;
+    return {
+        evalforgeUrl: (0, evalforge_core_1.ensureHttps)(core, core.getInput('evalforge-url', { required: true })),
+        projectId: core.getInput('evalforge-project-id', { required: true }),
+        appId: (0, evalforge_core_1.safeGetSecret)(core, 'evalforge-app-id'),
+        appSecret: (0, evalforge_core_1.safeGetSecret)(core, 'evalforge-app-secret'),
+        githubToken: (0, evalforge_core_1.safeGetSecret)(core, 'github-token'),
+        owner,
+        repo,
+        prNumber: (0, evalforge_core_1.getPrNumber)(github.context.payload),
+        evalRunId: core.getInput('eval-run-id', { required: true }),
     };
 }
 function getCleanupConfig() {
@@ -62703,16 +63126,16 @@ const gate_scope_1 = __nccwpck_require__(355);
 const sync_draft_scenarios_1 = __nccwpck_require__(9542);
 const run_and_report_1 = __nccwpck_require__(7535);
 async function runGate() {
+    // No recovery path here any more: the head repository is on the payload, so the gate always
+    // has an answer. There is no lookup to fail and nothing for a `blocking` run to trip over.
     const config = (0, config_1.getGateConfig)();
     const octokit = github.getOctokit(config.githubToken);
     const comment = (0, report_1.makeGateCommenter)(octokit, config);
-    // First, so a fork PR costs nothing. Skips rather than fails, including when the lookup
-    // errors — a GitHub blip must not turn into a red check. Says so on the PR, since otherwise
-    // a green check would look like a pass.
-    const author = await (0, pr_lookups_1.checkPrAuthor)(octokit, config);
+    // First, so a fork PR costs nothing. Skips rather than fails, and says so on the PR,
+    // since otherwise a green check would look like a pass.
+    const author = (0, pr_lookups_1.checkPrAuthor)(config);
     if (!author.allowed) {
-        const log = author.isUnexpected ? core.warning : core.info;
-        log(`Skipping wix-app eval gate — ${author.reason}`);
+        core.info(`Skipping wix-app eval gate — ${author.reason}`);
         await comment((0, evalforge_core_1.formatGateSkipped)(author.reason));
         return;
     }
@@ -62731,7 +63154,7 @@ async function runGate() {
     const nameToId = await (0, sync_draft_scenarios_1.syncDraftScenarios)(client, octokit, config, scope.value, draftTag, workspace, comment);
     if (!nameToId.ok)
         return;
-    await (0, run_and_report_1.runAndReport)(client, config, scope.value, nameToId.value, version.value.id, comment);
+    await (0, run_and_report_1.runAndReport)(client, config, scope.value, nameToId.value, version.value.id, comment, (0, report_1.makeAnalysisUpdater)(octokit, config));
 }
 
 
@@ -62906,23 +63329,18 @@ const evalforge_core_1 = __nccwpck_require__(7495);
 const report_1 = __nccwpck_require__(7267);
 const AUTHOR_ALLOWED = { allowed: true };
 /**
- * Whether the gate may run for this PR's author. Denies both when the author is not a Wix address
- * and when the lookup fails: either way the gate must not run, and neither is worth failing a check.
+ * Whether the gate may run for this PR's author.
+ *
+ * Synchronous and client-free: the association is already on the payload the workflow was
+ * triggered by, so there is no lookup here to blip, and no "could not resolve" case.
  */
-async function checkPrAuthor(octokit, config) {
-    try {
-        const email = await (0, evalforge_core_1.getFirstCommitAuthorEmail)(octokit, config.owner, config.repo, config.prNumber);
-        if ((0, evalforge_core_1.isWixAuthorEmail)(email))
-            return AUTHOR_ALLOWED;
-        return { allowed: false, reason: 'the PR author is not a wix author', isUnexpected: false };
-    }
-    catch (error) {
-        return {
-            allowed: false,
-            reason: `could not resolve the PR author: ${(0, report_1.describeError)(error)}`,
-            isUnexpected: true,
-        };
-    }
+function checkPrAuthor(config) {
+    if ((0, evalforge_core_1.isSameRepoBranch)(config.headRepoFullName, config.owner, config.repo))
+        return AUTHOR_ALLOWED;
+    return {
+        allowed: false,
+        reason: 'the PR branch is not in this repository, so its author has no write access',
+    };
 }
 /** True when unresolvable, so a lookup failure never releases another PR's lock. */
 async function isDraftTagActive(octokit, tag) {
@@ -62984,11 +63402,10 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.HALTED = void 0;
+exports.makeAnalysisUpdater = exports.makeAnalysisCommenter = exports.makeGateCommenter = exports.HALTED = void 0;
 exports.describeError = describeError;
 exports.fail = fail;
 exports.guardedCall = guardedCall;
-exports.makeGateCommenter = makeGateCommenter;
 const core = __importStar(__nccwpck_require__(7484));
 const evalforge_core_1 = __nccwpck_require__(7495);
 function describeError(error) {
@@ -63019,12 +63436,16 @@ async function guardedCall(operation, failure, comment, blocking) {
         return exports.HALTED;
     }
 }
-function makeGateCommenter(octokit, target) {
-    return (0, evalforge_core_1.makeCommenter)(octokit, { ...target, marker: evalforge_core_1.GATE_COMMENT_MARKER }, {
+function commenterFor(marker, options = {}) {
+    return (octokit, target) => (0, evalforge_core_1.makeCommenter)(octokit, { ...target, marker }, {
         warn: core.warning,
         writeSummary: async (body) => { await core.summary.addRaw(body).write(); },
-    });
+    }, options);
 }
+exports.makeGateCommenter = commenterFor(evalforge_core_1.GATE_COMMENT_MARKER);
+exports.makeAnalysisCommenter = commenterFor(evalforge_core_1.ANALYSIS_COMMENT_MARKER);
+/** For the gate, which retracts a superseded investigation but must never open one. */
+exports.makeAnalysisUpdater = commenterFor(evalforge_core_1.ANALYSIS_COMMENT_MARKER, { createIfMissing: false });
 
 
 /***/ }),
@@ -63077,7 +63498,9 @@ const comparison_arms_1 = __nccwpck_require__(6430);
 const base_attribution_1 = __nccwpck_require__(3500);
 async function runAndReport(client, config, scope, nameToId, 
 /** The version's **id**, not its label. */
-versionId, comment) {
+versionId, comment, 
+/** Update-only, so a PR that never failed gets no investigation comment to retract. */
+supersedeAnalysis) {
     const selected = await resolveScenarioIds(config, scope, nameToId, comment);
     if (!selected.ok)
         return;
@@ -63119,6 +63542,24 @@ versionId, comment) {
             impact,
             runsPerScenario: config.runsPerScenario,
         }));
+        // The analyze job's whole trigger condition. Emitted only when there is something to
+        // investigate, so a green run starts no runner and adds no second comment. Keyed on the
+        // assertion counts rather than the verdict: in soak mode a run with real failures still
+        // passes, and those are the runs most worth investigating.
+        const { failed, errors } = prStatus.aggregateMetrics;
+        if (failed > 0 || errors > 0) {
+            core.setOutput('analyze-run-id', arms.value.prRunId);
+        }
+        else if (verdict.passed) {
+            // Nothing else clears the investigation: it is only ever written on failure, and its job does
+            // not start for a clean run. Without this the fixing push leaves a green verdict sitting above
+            // the findings of the run it fixed.
+            //
+            // Guarded on the verdict, not just the counts: a cancelled run and a run that produced no
+            // assertions both fail the verdict with `failed` and `errors` at zero. Retracting there would
+            // claim the failures were gone beside a red check, and delete the findings that still apply.
+            await supersedeAnalysis((0, evalforge_core_1.formatAnalysisSuperseded)({ runId: arms.value.prRunId, runUrl }));
+        }
         if (!verdict.passed) {
             (0, report_1.fail)(`Eval gate failed: ${verdict.reasons.join('; ')}`, config.isBlocking);
         }
@@ -63353,7 +63794,6 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.applyPlan = applyPlan;
 exports.runSync = runSync;
 const core = __importStar(__nccwpck_require__(7484));
-const github = __importStar(__nccwpck_require__(3228));
 const evalforge_core_1 = __nccwpck_require__(7495);
 const config_1 = __nccwpck_require__(7799);
 const workspace_1 = __nccwpck_require__(9620);
@@ -63388,11 +63828,9 @@ async function applyPlan(client, projectId, plan) {
 }
 async function runSync() {
     const config = (0, config_1.getSyncConfig)();
-    const octokit = github.getOctokit(config.githubToken);
     const [owner, repoName] = config.repo.split('/', 2);
-    const authorEmail = await (0, evalforge_core_1.getFirstCommitAuthorEmail)(octokit, owner, repoName, config.prNumber);
-    if (!(0, evalforge_core_1.isWixAuthorEmail)(authorEmail)) {
-        core.info('Skipping wix-app sync — PR author is not a @wix.com address');
+    if (!(0, evalforge_core_1.isSameRepoBranch)(config.headRepoFullName, owner, repoName)) {
+        core.info('Skipping wix-app sync — the PR branch is not in this repository');
         return;
     }
     const workspace = (0, workspace_1.workspaceRoot)();
