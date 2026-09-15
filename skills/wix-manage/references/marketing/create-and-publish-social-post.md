@@ -233,6 +233,8 @@ Only `VALID` proceeds to `List Accounts`. For every other status, go to STEP 4c 
 
 **This is per-channel** — the status tells you only about the channel you queried, nothing about others. Scope statements to that channel ("Pinterest isn't connected yet"); never say "no accounts connected on this site" from a single-channel check.
 
+**For `GBP`, this per-channel posting connection is a different thing from the site's Google Business Profile *account* connection** (`GET /gbp/v1/connection`, used to import and manage locations) — a site can hold one without the other. Report only what this call showed for the `GBP` channel; never describe the two as the same "connected"/"not connected" state. If this call is not `VALID`, connect it via **STEP 4c** below — not the "Connect a Wix Site to Google Business Profile" skill, which manages the separate account connection and cannot fix a posting token.
+
 ### STEP 4b: Get the account to publish to (only when status is `VALID`)
 
 Because STEP 4a already confirmed `VALID`, this call returns the connected accounts and won't throw `USER_NOT_EXIST_FOR_CHANNEL`.

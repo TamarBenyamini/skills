@@ -1,0 +1,62 @@
+name: marketing/create-and-publish-social-post-gbp-connection-scope
+description: >-
+  Verifies the agent does not conflate the social-publisher GBP posting connection
+  with the separate Google Business Profile account connection. On a fresh site
+  (GBP channel not connected for posting), asking to publish a Google Business
+  Profile post must be resolved entirely within this skill's own STEP 4 (check
+  long-lived-token-status, offer STEP 4c's connect-url when not VALID) — the
+  agent must not activate or reference the "Connect a Wix Site to Google
+  Business Profile" skill or call GET /gbp/v1/connection, and must not describe
+  the site as "connected" or "not connected" to Google Business Profile in a
+  way that conflates the two distinct connections.
+triggerPrompt: >-
+  Publish this to my Google Business Profile now: "Two openings left this
+  season — book now!" with the image
+  https://static.wixstatic.com/media/cf2434_4b3a2d8eb7f54bc89c0d4524430a2af3~mv2.jpg.
+tags: [marketing]
+siteSetup:
+  mode: template
+  templateId: stores-v3-editor
+assertions:
+  - tool: ReadFullDocsArticle
+    params:
+      articleUrl: https://dev.wix.com/docs/api-reference/business-management/marketing/skills/create-and-publish-a-social-media-post-with-ai-generation
+  - type: llm_judge
+    minScore: 7
+    maxTokens: 2048
+    prompt: |
+      The user asked to publish a Google Business Profile (GBP) post IMMEDIATELY, on a
+      fresh site where the GBP channel is NOT connected for posting (long-lived-token-status
+      is not VALID).
+
+      Pass if the response:
+      - checks the GBP channel's posting connection via long-lived-token-status
+        (GET /social-publisher/v1/GBP/long-lived-token-status) BEFORE creating or
+        publishing, AND
+      - on finding it not VALID, offers to connect via THIS skill's own STEP 4c
+        (GET /social-publisher/v1/GBP/connect-url) — not a different flow, AND
+      - does NOT call GET /gbp/v1/connection, AND
+      - does NOT activate or mention the "Connect a Wix Site to Google Business Profile"
+        skill or any Google Business Profile *location/account* connection, AND
+      - does NOT claim or imply the site's Google Business Profile account connection
+        (a separate concept) is relevant to whether this post can be published, AND
+      - does NOT attempt Create Draft Item or Publish while the channel is not VALID.
+
+      Fail if the response:
+      - calls GET /gbp/v1/connection or references the account-level GBP connection
+        skill, OR
+      - describes the GBP posting connection and the GBP account connection as the
+        same "connected"/"not connected" state, OR
+      - attempts to publish or schedule while the channel is not VALID, OR
+      - never checks the connection before acting.
+  - type: llm_judge
+    minScore: 7
+    maxTokens: 2048
+    prompt: >
+      Rate how smoothly the Wix MCP let the agent fulfill the request. Examine
+      the tool-call trace. Score 0-10 (10 = direct: one long-lived-token-status
+      check, then a clear connect offer via STEP 4c, no wasted calls, no errors).
+      Penalize and LIST any of: a call to GET /gbp/v1/connection or the
+      account-level connect skill; a non-2xx error even if recovered; redundant
+      probing calls clearer docs would avoid. For each, name the likely MCP/docs gap.
+      Return ONLY {"score":<0-10>,"reason":"<terse list of frictions + suspected MCP/docs gap, or 'clean path' if none>"}.

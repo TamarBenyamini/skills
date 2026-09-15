@@ -13,7 +13,12 @@ list the user's sites once and auto-select the only one, or ask the user to
 choose by site name when several are available. Never invent a site ID or ask
 the user to type one. A connection is the prerequisite for Google-backed work in the Google
 Business Profile Locations API — establish it before importing or managing
-locations.
+locations. **This connection is unrelated to whether `GBP` is connected as a
+social-publisher channel for posting** — that is a separate per-channel token
+checked by the "Create and Publish a Social Media Post" skill's own connection
+step (`long-lived-token-status`). A `VALID` result here does not mean posting
+will work, and this skill's connect flow cannot fix a posting-channel
+connection; route posting-connection issues to that skill instead.
 
 > **Bounded connect path — read first.** Read the connection once. For
 > `NEVER_CONNECTED`, request one connect URL and hand it to the owner; for
