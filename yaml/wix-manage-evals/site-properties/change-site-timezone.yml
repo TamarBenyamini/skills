@@ -10,7 +10,7 @@ maxTokens: 30000
 assertions:
   - tool: ReadFullDocsArticle
     params:
-      articleUrl: https://dev.wix.com/docs/api-reference/business-management/site-properties/skills/change-payment-currency-site-properties
+      articleUrl: https://dev.wix.com/docs/api-reference/business-management/site-properties/skills/update-site-regional-properties
   - type: llm_judge
     minScore: 7
     maxTokens: 2048
