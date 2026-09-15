@@ -1,0 +1,42 @@
+name: ecommerce/pricing-promotions/create-coupon-site-wide-scope
+description: Create an all-products percentage coupon without an invalid product group or scope-repair retry.
+triggerPrompt: |
+  Please create a coupon called Welcome 20 with code WELCOME20 for 20% off all
+  products in my store. Start it now, with no expiration, a total limit of 100
+  uses, and one use per customer. I've approved these terms; go ahead and create it.
+tags: [ecommerce, stores]
+siteSetup:
+  mode: template
+  templateId: stores-v3-editor
+assertions:
+  - tool: ReadFullDocsArticle
+    params:
+      articleUrl: https://dev.wix.com/docs/api-reference/business-solutions/e-commerce/skills/pricing-create-coupon
+  - type: llm_judge
+    minScore: 7
+    maxTokens: 2048
+    prompt: |
+      Evaluate the actual coupon creation result, not just the final prose.
+      Pass only if a successful create-coupon API response confirms a coupon ID
+      for WELCOME20, named Welcome 20, with percentOffRate 20, active true (or
+      omitted to use its default), usageLimit 100, and limitPerCustomer 1.
+      Its scope must be exactly {"namespace":"stores"}, with no group and no
+      minimumSubtotal, so all store products qualify. startTime must represent
+      the run's current time in epoch milliseconds; expirationTime must be omitted.
+      Fail if it only proposes a payload, reports success without a successful
+      API result, creates a targeted coupon, changes the discount type, adds a
+      spending threshold, or creates more than one coupon.
+  - type: llm_judge
+    minScore: 7
+    maxTokens: 2048
+    prompt: |
+      Rate the coupon creation tool-call path from 0 to 10. A clean path scores
+      10. The regression is sending a Stores product group without entityId for
+      an all-products percentage coupon and then retrying after a scope error.
+      Score at most 6 if ANY create attempt sends group.name product without an
+      entityId, if any scope/type validation error occurs even when recovered,
+      or if the agent probes different scope shapes before succeeding.
+      Penalize other avoidable API errors and repeated schema lookups needed to
+      reconstruct the all-products payload. Do not penalize necessary duplicate
+      code/stacking checks, skill discovery, or reading the current time.
+      Return ONLY {"score":<0-10>,"reason":"<frictions and likely docs gap, or clean path>"}.

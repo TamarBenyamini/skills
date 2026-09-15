@@ -214,7 +214,7 @@ Buy a domain through Wix or connect one the user already owns — intent, availa
 <summary>Internal skills (loaded automatically by the dispatchers / orchestrator above — do NOT use directly)</summary>
 
 #### Pricing & promotions leaves (loaded by the Pricing dispatcher or by the strategy orchestrator)
-- [Pricing: Create Coupon](references/ecommerce/pricing-promotions/ecom-pricing-create-coupon.md)
+- [Pricing: Create Coupon](references/ecommerce/pricing-promotions/ecom-pricing-create-coupon.md) — PREFERRED recipe for converting a COUPON recommendation (mechanism: COUPON) into a Wix coupon. Use THIS entry — NOT the legacy setup-coupons entry which is superseded. Maps scope/discountType/conditions to Coupons V2 API fields.
 - [Pricing: Create Discount Rule](references/ecommerce/pricing-promotions/ecom-pricing-create-discount-rule.md)
 - [Pricing: Discount Not Applying](references/ecommerce/pricing-promotions/ecom-pricing-troubleshoot-not-applying.md)
 - Goals: [Increase AOV](references/ecommerce/pricing-promotions/ecom-pricing-goal-increase-aov.md), [Clear Inventory](references/ecommerce/pricing-promotions/ecom-pricing-goal-clear-inventory.md), [Seasonal Revenue](references/ecommerce/pricing-promotions/ecom-pricing-goal-seasonal-revenue.md), [Drive Cross-Sells](references/ecommerce/pricing-promotions/ecom-pricing-goal-drive-cross-sells.md)
