@@ -3,9 +3,9 @@
 > Split out of [DRAFT_TEMPLATE.md](DRAFT_TEMPLATE.md) so the case chooser stays short. Pick your
 > case there first. This page is shared by A, B and D.
 
-> **This is the hand-wired path — you write `fetchData`, the filters and the columns.** If the rows
-> are a CMS collection, its schema already knows all three: use
-> [DRAFT_TEMPLATE_CMS_COLLECTION.md](DRAFT_TEMPLATE_CMS_COLLECTION.md) instead.
+> **You write `fetchData`, the filters and the columns.** This holds whatever the rows are: for a
+> CMS collection `fetchData` calls `@wix/data` `items.query()`
+> ([WIX_DATA.md](../data-collection/WIX_DATA.md)) and nothing else on this page changes.
 
 ## Two rules this skeleton encodes, so read them before editing it
 
