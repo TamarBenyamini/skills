@@ -126,7 +126,10 @@ calling **Start**, confirm:
   export file URL(s) are correct
 - The user understands it runs for up to ~60 minutes and may ask questions mid-way
 - Which destination they want: a brand-new site, or their existing site by id
-  (site-scoped) — this can't be changed once Start is called
+  (site-scoped) — this can't be changed once Start is called. Importing into
+  an existing site writes into it directly and can add or overwrite its
+  current pages and content, so make sure they understand that before you
+  proceed — it isn't a safe side-by-side preview.
 
 Also confirm before calling **Cancel** — it's irreversible.
 
@@ -204,10 +207,13 @@ You are the user experience; the API is plumbing. Keep the protocol invisible:
    site — the default when the user has none yet or wants a fresh one;
    site-scoped (adding a `wix-site-id: <siteId>` header, same body — see the
    examples above) writes into that existing site instead. Ask the user which
-   they want before calling Start — it can't change afterward — and if they
-   already have a destination site, add the `wix-site-id` header for every
-   call on that `importId` (Poll, Send-a-message, Cancel included), or you'll
-   silently create an unwanted second site. `destinationSiteId` in the
+   they want before calling Start — it can't change afterward. Get this
+   wrong at Start and you'll silently create an unwanted second site instead
+   of writing into the one they meant. Once Start has scoped the import,
+   keep sending that same `wix-site-id` header on every later call for that
+   `importId` (Poll, Send-a-message, Cancel included) — it won't create
+   another site at this point, but omitting it will fail authorization
+   against the site-scoped import. `destinationSiteId` in the
    response echoes this (empty = new site, set = that existing site), returned
    as soon as Start succeeds, even before a source is confirmed.
    **One import per store at a time, keyed on `source_url`** (or the file set
@@ -296,9 +302,11 @@ the user has no way to open a file.
 - Treat `NEEDS_INPUT` and `AUTH_EXPIRED` as normal conversation turns, not
   errors.
 - **Site Import is in closed beta, with no self-service enablement path.**
-  A `404` or `403` on an **account-level** Start — with or without `"code":
-  "NOT_ENABLED"` — means this account isn't in the beta. Don't probe other
-  endpoints to diagnose it, don't retry, and don't fall back to another
+  A `"code": "NOT_ENABLED"` on a `404`/`403` from Start always means this
+  account isn't in the beta — whether the call was account-level or
+  site-scoped. The code isn't always present on an **account-level** call, so
+  treat a plain `404`/`403` there as the beta-lockout case too. Don't probe
+  other endpoints to diagnose it, don't retry, and don't fall back to another
   site-creation tool. Tell the user plainly and warmly that Site Import is
   currently in a closed beta, that you'd be happy to help once they're in,
   and that they can request access by filling out this short form:
@@ -308,10 +316,10 @@ the user has no way to open a file.
   public "importing a site created outside of Wix" help-center article is an
   unrelated, long-stalled feature-request page — sending a user to either is a
   dead end. The form above is the only channel that reaches the team.
-  **A `403` on a site-scoped call (with the `wix-site-id` header) without
-  `"code": "NOT_ENABLED"` is different** — it means the caller isn't
-  authorized for that `siteId` (wrong id, wrong account, no access), not a
-  beta-enrollment issue. Tell the user the destination site isn't accessible
+  **A `403` on a site-scoped call *without* `"code": "NOT_ENABLED"` is
+  different** — it means the caller isn't authorized for that `siteId`
+  (wrong id, wrong account, no access), not a beta-enrollment issue. Tell the
+  user the destination site isn't accessible
   with their current connection and stop; don't send them to the beta form
   for this.
 - For any other unrecognized error or exception on Start — a transient server
