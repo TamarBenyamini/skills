@@ -120,9 +120,9 @@ export const {Feature}CollectionPage: FC = () => {
               action={{ text: 'Retry', onClick: retry }}
             />
           )}
-          // The drill-in. Editable record → the EntityPage route (`/${item.id}`).
-          // Display-only → the read-only route (`/view/${item.id}`). Either way a route,
-          // and passing `entity` lets the target title itself before its fetch lands.
+          // The drill-in for an EDITABLE record: the EntityPage route. Passing `entity`
+          // lets the target title itself before its fetch lands. A display-only
+          // collection uses `onRowClick={setSelected}` and the side panel instead.
           onRowClick={(item) => navigateToEntityPage({ path: `/${item.id}`, entity: item })}
           columns={[
             // One column per field the prompt names; verify each source field —

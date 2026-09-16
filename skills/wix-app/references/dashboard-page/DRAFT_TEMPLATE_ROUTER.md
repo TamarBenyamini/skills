@@ -108,7 +108,10 @@ Full call details (both generics, what `onSave` receives, the `UseEntityPagePara
 import { useParams } from 'react-router-dom'; // NOT @wix/patterns/router — PatternsReactRoute wraps react-router-dom's Route, but only exports PatternsReactRoute/PatternsReactRouter/usePatternsNavigate itself
 import { useEntityPage, EntityPage } from '@wix/patterns';
 import { useForm } from '@wix/patterns/form';
-import { fetch{Entity}, save{Entity} } from './{feature}-api';
+import { fetch{Entity}, save{Entity}, type {Entity} } from './{feature}-api';
+
+// The form's shape is yours to declare, and need not match the saved entity type.
+type {Entity}FormFields = { name: string };
 
 export const {Feature}EntityPage = () => {
   const { id } = useParams<{ id?: string }>();
@@ -135,3 +138,5 @@ export const {Feature}EntityPage = () => {
 ```
 
 `useEntityPage`'s own docs are explicit about both details above: `parentPath` "Must be passed if using Patterns Router" (`parentPageId` is the non-router alternative — irrelevant here, since Case B/D always uses the router), and `isNewEntity` should be "a getter when the route can change while the page stays mounted" — exactly this component's case, since a successful create typically navigates `/new` → `/:newId`.
+
+**`UseEntityPageParams` is a `Pick<>`, so a param missing from it is a compile error, not an ignored prop.** `isNewEntity` is absent on older installs — verified absent at 1.436.0, whose pick list is `fetch`, `onSave`, `saveSuccessToast`, `saveErrorToast`, `form`, `parentPageId`, `parentPath`, `schemaSource`. If the line doesn't compile, read the pick list in your installed `dist/types/hooks/useEntityPage.d.ts` and upgrade — don't delete the line, or a create route silently behaves as an edit.

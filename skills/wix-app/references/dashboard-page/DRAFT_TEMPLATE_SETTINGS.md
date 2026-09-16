@@ -10,7 +10,11 @@ No dedicated toolkit file exists for this yet (unlike Entity/Collection) — the
 // {Feature}SettingsPage.tsx — Case C or D
 import { SettingsPage, useSettingsPage, useSettings } from '@wix/patterns';
 import { useForm } from '@wix/patterns/form';
-import { fetch{Feature}Settings, save{Feature}Settings } from './{feature}-api';
+import { fetch{Feature}Settings, save{Feature}Settings, type {Feature}Settings } from './{feature}-api';
+
+// The form's shape is yours to declare, and need not match the saved settings type —
+// one field per control on the page.
+type {Feature}SettingsFormFields = { reminderHours: number; notifyStaff: boolean };
 
 export const {Feature}SettingsPage = () => {
   const form = useForm<{Feature}SettingsFormFields>();
