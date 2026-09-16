@@ -81,7 +81,7 @@ import { PrimaryPageButton } from '@wix/patterns';
 import { usePatternsNavigate } from '@wix/patterns/router';
 
 const { navigateToEntityPage } = usePatternsNavigate<{Entity}>();
-const openNew = () => navigateToEntityPage({ path: '/new', entity: {} as {Entity} });
+const openNew = () => navigateToEntityPage({ path: '/new' }); // no record yet — omit `entity`
 
 // CollectionPage.Header — primaryAction takes an ELEMENT, not a { text, onClick } config:
 <CollectionPage.Header
@@ -139,4 +139,4 @@ export const {Feature}EntityPage = () => {
 
 `useEntityPage`'s own docs are explicit about both details above: `parentPath` "Must be passed if using Patterns Router" (`parentPageId` is the non-router alternative — irrelevant here, since Case B/D always uses the router), and `isNewEntity` should be "a getter when the route can change while the page stays mounted" — exactly this component's case, since a successful create typically navigates `/new` → `/:newId`.
 
-**`UseEntityPageParams` is a `Pick<>`, so a param missing from it is a compile error, not an ignored prop.** `isNewEntity` is absent on older installs — verified absent at 1.436.0, whose pick list is `fetch`, `onSave`, `saveSuccessToast`, `saveErrorToast`, `form`, `parentPageId`, `parentPath`, `schemaSource`. If the line doesn't compile, read the pick list in your installed `dist/types/hooks/useEntityPage.d.ts` and upgrade — don't delete the line, or a create route silently behaves as an edit.
+**`UseEntityPageParams` is a `Pick<>`, so a param missing from it is a compile error, not an ignored prop.** `isNewEntity` is present from the versions this skill targets (in the pick list at 1.470.0) and absent on older ones — at 1.436.0 the list was only `fetch`, `onSave`, `saveSuccessToast`, `saveErrorToast`, `form`, `parentPageId`, `parentPath`, `schemaSource`. If the line doesn't compile, read the pick list in your installed `dist/types/hooks/useEntityPage.d.ts` and upgrade — don't delete the line, or a create route silently behaves as an edit.
