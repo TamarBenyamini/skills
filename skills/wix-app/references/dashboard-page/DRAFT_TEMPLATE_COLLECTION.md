@@ -174,3 +174,20 @@ Hold the open record in the collection page and render the panel beside the tabl
 `const [selected, setSelected] = useState<{Entity}Row>()`, `onRowClick={setSelected}`, and
 `{selected && <{Feature}DetailPanel entity={selected} onClose={() => setSelected(undefined)} />}`.
 Use `closeButtonProps`, not `onCloseButtonClick`: that one is deprecated.
+
+**If the detail needs fields the row doesn't carry, the panel fetches too.** `onRowClick` hands you
+the table row, which is usually a projection — so a panel that shows more than the table already
+showed needs its own call, keyed off the row's id:
+
+```tsx
+const [detail, setDetail] = useState<{Entity} | undefined>();
+
+useEffect(() => {
+  setDetail(undefined);
+  fetch{Entity}(entity.id).then(setDetail);
+}, [entity.id]);
+```
+
+Render a `Loader` inside `SidePanel.Content` until `detail` arrives. The `setDetail(undefined)` on
+every id change is the part that gets skipped: without it the panel shows the previous record's
+fields while the new one loads, which reads as the wrong record rather than a pending one.

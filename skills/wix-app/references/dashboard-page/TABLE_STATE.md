@@ -1,14 +1,17 @@
 # Reading the state object `useTableCollection` hands you
 
-> **Scope.** The [Component Docs Gate](../../SKILL.md) covers component *names and props*. This file
-> covers the *state object you receive* — the thing the docs deliberately don't expand. Every member
-> below was read from `dist/dts-bundle/types/TableState.d.ts` in the installed package.
+> **Scope.** The [Component Docs Gate](../../SKILL.md) covers component *names and props*, and the
+> package's own `TableState` declaration is the member list. This file covers only what that
+> declaration cannot tell you: the plausible members that are absent from it, and the behaviour
+> behind the ones that are there.
 
 ## Why guessing here always fails
 
-`useTableCollection()` returns a `TableState`. Its members are real and typed — the reason to read
-this file rather than infer them is that the names are unobvious and several plausible ones don't
-exist at all (see [Three that bite in practice](#three-that-bite-in-practice)).
+`useTableCollection()` returns a `TableState`. For the members themselves, read the declaration the
+index names — `Read <pkgRoot>/dist/dts-bundle/index.json`, then its `file`. Reading them is not the
+hard part; the hard part is that several plausible members don't exist at all, and one that does
+means something other than its name suggests (see
+[Four that bite in practice](#four-that-bite-in-practice)).
 
 **One thing not to conclude from the docs bundle.** `dist/dts-bundle/` publishes `CollectionState`
 as a stub:
@@ -25,20 +28,6 @@ sound. See [WIX_PATTERNS_DOCS.md § 5](../WIX_PATTERNS_DOCS.md#5--traps-that-mak
 
 Prefer a typed member on `TableState` itself anyway — it is the object the hook hands you, and the
 table's own view of the collection.
-
-## The members you actually need
-
-| You want | Use | Notes |
-| --- | --- | --- |
-| The loaded rows | `state.keyedItems` | `KeyedItem<T>[]` — `.map((k) => k.item)` for the items |
-| Rows paged in so far | `state.keyedItems.length` | What the table currently renders — **not** the result size |
-| Rows matching the filters | `state.collection.total` | Getter. With `fetchTotal` configured it is **only** what that resolved; without it, the last page's `total`, falling back to the loaded rows' count |
-| Is the query failing | `state.showErrorState` | Boolean; pairs with `state.errorStatus` |
-| Retry after a failure | `state.retryErrorState()` | Method, not a property |
-| Nothing matched / nothing exists | `state.showEmptyState`, `state.hasAvailableItems` | Drives which placeholder to show |
-| Sort a column | `state.sort(columnId, { forceDirection })` | |
-| The visible columns | `state.visibleColumns` | |
-| The toolbar (filters live here) | `state.toolbar` | **Not** `state.filters` — that does not exist |
 
 ## Four that bite in practice
 
