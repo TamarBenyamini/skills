@@ -129,7 +129,7 @@ before the fetch resolves.
 
 Two rules carry over unchanged from the hand-wired path, and both are about what is *not* here:
 **no `SummaryBar`** unless the request asked for one, and **the row opens a page** —
-`navigateToEntityPage`, never a `SidePanel`
+`navigateToEntityPage` for an editable row, a full-height `SidePanel` when the collection is display-only
 ([SKILL.md § Step 2](../../SKILL.md) — no `SummaryBar` unless the request asked for one).
 
 ## 3. Entity page — the same source drives the form

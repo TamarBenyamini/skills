@@ -8,7 +8,7 @@ Every snippet below was copied from the installed `dist/docs/*.md` and `dist/dts
 
 | The request needs… | Case | Router? |
 | --- | --- | --- |
-| A list/report whose rows are read-only — no create/edit form | **A — Collection + read-only detail** | Yes |
+| A list/report whose rows are read-only — no create/edit form | **A — Collection + read-only side panel** | No |
 | A list **and** create/edit for each record (no separate app-settings area) | **B — Collection + Entity** | Yes |
 | Only app-wide settings/config — no list at all | **C — Settings only** | No |
 | A list, create/edit, **and** an app-settings area, all in one extension | **D — Collection + Entity + Settings** | Yes |
@@ -36,10 +36,10 @@ after — converting means rewriting both the collection page and the entity pag
 ```
 src/extensions/dashboard/pages/{feature}/
   {feature}.extension.ts        # single wix generate scaffold — always exactly one route registered here
-  {feature}.tsx                 # entry — Case C: see Section 1 below. Case A/B/D: see DRAFT_TEMPLATE_ROUTER.md
-  {Feature}App.tsx              # Case A/B/D only — see DRAFT_TEMPLATE_ROUTER.md
+  {feature}.tsx                 # entry — Cases A and C: Section 1 below. Cases B and D: DRAFT_TEMPLATE_ROUTER.md
+  {Feature}App.tsx              # Case B, D only — see DRAFT_TEMPLATE_ROUTER.md
   {Feature}CollectionPage.tsx   # Case A, B, D — see DRAFT_TEMPLATE_COLLECTION.md
-  {Feature}DetailPage.tsx       # Case A only — read-only detail route, DRAFT_TEMPLATE_ROUTER.md §4
+  {Feature}DetailPanel.tsx      # Case A only — read-only side panel, DRAFT_TEMPLATE_COLLECTION.md
   {Feature}EntityPage.tsx       # Case B, D only — see DRAFT_TEMPLATE_ROUTER.md
   {Feature}SettingsPage.tsx     # Case C, D only — see DRAFT_TEMPLATE_SETTINGS.md
   {feature}-api.ts              # fetch/save calls — keep these out of the components
@@ -53,10 +53,10 @@ wix generate --params '{"extensionType":"DASHBOARD_PAGE","title":"<title>","rout
 
 ## 1. Entry — Case C only (router-free, no location plumbing)
 
-Case C has one page and no rows to open, so it needs no router and no manual `location` wiring. **Cases A, B and D all route** — a row opens a page of its own in every one of them — so their entry file is [DRAFT_TEMPLATE_ROUTER.md](DRAFT_TEMPLATE_ROUTER.md) §1:
+**Cases A and C need no router** — Case C has no rows to open, and Case A's rows open a side panel rather than a second route, so neither needs manual `location` wiring. **Cases B and D route**, so their entry file is [DRAFT_TEMPLATE_ROUTER.md](DRAFT_TEMPLATE_ROUTER.md) §1:
 
 ```tsx
-// {feature}.tsx — Case C
+// {feature}.tsx — Cases A and C (no router). Case A renders {Feature}CollectionPage instead.
 import type { FC } from 'react';
 import { withDashboard } from '@wix/patterns';
 import { WixPatternsProvider } from '@wix/patterns/provider';
@@ -75,14 +75,14 @@ const Page: FC = () => (
 export default withDashboard(Page);
 ```
 
-Cases A, B and D differ — they need `location` supplied manually for `PatternsReactRouter`. See [DRAFT_TEMPLATE_ROUTER.md](DRAFT_TEMPLATE_ROUTER.md) rather than adding that plumbing here; it's dead code without a router underneath it.
+Cases B and D differ — they need `location` supplied manually for `PatternsReactRouter`. See [DRAFT_TEMPLATE_ROUTER.md](DRAFT_TEMPLATE_ROUTER.md) rather than adding that plumbing here; it's dead code without a router underneath it.
 
 ## 2. Collection page — Case A, B, D
 
 In [DRAFT_TEMPLATE_COLLECTION.md](DRAFT_TEMPLATE_COLLECTION.md) — `useTableCollection`, a working
-filter named on both label props, the four placeholder states, and a row that navigates. Shared by
-Cases A, B and D. No `SummaryBar` and no `SidePanel`: the aggregate is opt-in per request, and the
-drill-in is always a route.
+filter, the four placeholder states, and a row that opens. Shared by Cases A, B and D. No
+`SummaryBar` unless the request asked for one, and the drill-in is a route whenever the record is
+editable — a side panel only for a display-only collection.
 
 ## 3. Settings page — Case C, D
 

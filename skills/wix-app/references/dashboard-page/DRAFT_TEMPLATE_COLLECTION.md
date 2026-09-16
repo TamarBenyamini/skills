@@ -9,12 +9,13 @@
 
 ## Two rules this skeleton encodes, so read them before editing it
 
-**Every row opens a page of its own, never a panel.** `onRowClick` navigates —
-`navigateToEntityPage` to an `EntityPage` route when the record is editable, or to a read-only
-detail route when the page is display-only ([DRAFT_TEMPLATE_ROUTER.md](DRAFT_TEMPLATE_ROUTER.md#4-read-only-detail-route--case-a)).
-A WDS `SidePanel` is not the drill-in: in Cairo it is the host for a page's own side panels — the
-fields card's "Manage fields", a table's column panel — and `example-bm` uses it as a row drill-in
-in exactly nothing. Every collection example there navigates.
+**Every row opens something, and which one depends on whether the record is editable.** An
+**editable** record navigates: `onRowClick` calls `navigateToEntityPage` to an `EntityPage` route
+([DRAFT_TEMPLATE_ROUTER.md](DRAFT_TEMPLATE_ROUTER.md)) — never a panel, because in Cairo a panel
+hosts a page's own side panels and no `example-bm` collection navigates a row into one. A
+**display-only** collection is the exception, and only because `EntityPage` has no read-only mode:
+it opens a full-height WDS `SidePanel` ([below](#read-only-rows-the-detail-side-panel)). A row that
+opens nothing is the defect either way.
 
 **No `SummaryBar` unless the request asked for one.** Not "unless the page seems to want one" —
 unless the prompt named a total, a count, or a "how many / how much" figure. It is absent from this
@@ -43,8 +44,8 @@ const STATUS_LABELS: Record<string, string> = { ACTIVE: 'Active', ARCHIVED: 'Arc
 // Filter factories are module-level: one instance per page, not per render.
 const statusFilter = stringsArrayFilter<'ACTIVE' | 'ARCHIVED'>({
   // `name` is NOT the visible title — it feeds a11y legends, BI grouping and dataHooks.
-  // The title comes from the two label props in the JSX below. See FILTERS.md,
-  // "Naming a filter".
+  // The title comes from the label props in the JSX below; the package's own
+  // `Collection Toolkit.md` guide has the prop model.
   name: 'Status',
   itemKey: (item) => item,
   itemName: (item) => STATUS_LABELS[item] ?? item,
@@ -96,13 +97,8 @@ export const {Feature}CollectionPage: FC = () => {
           search={<CollectionSearch placeholder="Search {feature}" />}
           filters={
             <CollectionToolbarFilters>
-              {/* BOTH label props, same string. accordionItemProps.label is the one that
-                  must be there: it titles the filter in the side panel, prefixes the
-                  applied-filter tag, and is what the panel's filter search matches — its
-                  fallback is '', i.e. a nameless filter. toolbarItemProps.label is the only
-                  source for the inline chip's label and has no fallback either.
-                  Do NOT pass accordionItemProps.title — FILTERS.md explains what
-                  it silently replaces. */}
+              {/* BOTH label props, same string, and never accordionItemProps.title.
+                  The resolution model is the package's own `Collection Toolkit.md` guide. */}
               <MultiSelectCheckboxFilter
                 filter={statusFilter} collection={statusOptions}
                 toolbarItemProps={{ label: 'Status' }}
@@ -139,3 +135,42 @@ export const {Feature}CollectionPage: FC = () => {
   );
 };
 ```
+
+## Read-only rows: the detail side panel
+
+Case A only. `EntityPage` has no read-only mode — `useEntityPageHeader` composes
+`EntityPageActionsBar` unconditionally and that bar always renders Save and Cancel — so a
+display-only record opens into a WDS `SidePanel` instead, and keeps the filtered list on screen.
+The moment the request grows an edit form this becomes an `EntityPage` route instead
+([DRAFT_TEMPLATE_ROUTER.md](DRAFT_TEMPLATE_ROUTER.md)).
+
+**`height="100vh"` is the whole point.** `SidePanel`'s `height` defaults to `'100%'`, which fills
+its *parent* — inside a `CollectionPage` body that is the table's height, so the panel arrives
+short and the record looks cropped. Pair it with `Content stretchVertically` so the body fills the
+panel and scrolls inside it. `width` defaults to `420px`.
+
+```tsx
+// {Feature}DetailPanel.tsx — Case A
+import { Card, SidePanel, Text } from '@wix/design-system';
+import type { {Entity}Row } from './{feature}-api';
+
+export const {Feature}DetailPanel = ({
+  entity, onClose,
+}: { entity: {Entity}Row; onClose: () => void }) => (
+  <SidePanel height="100vh" closeButtonProps={{ onClick: onClose }}>
+    <SidePanel.Header title={entity.name} />
+    <SidePanel.Content stretchVertically>
+      <Card>
+        <Card.Content>
+          <Text>{entity.name}</Text>
+        </Card.Content>
+      </Card>
+    </SidePanel.Content>
+  </SidePanel>
+);
+```
+
+Hold the open record in the collection page and render the panel beside the table —
+`const [selected, setSelected] = useState<{Entity}Row>()`, `onRowClick={setSelected}`, and
+`{selected && <{Feature}DetailPanel entity={selected} onClose={() => setSelected(undefined)} />}`.
+Use `closeButtonProps`, not `onCloseButtonClick`: that one is deprecated.

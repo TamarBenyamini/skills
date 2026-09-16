@@ -125,13 +125,13 @@ Choose the smallest interface that gives users enough context and room to comple
 | Interface | Use when… | Success looks like… |
 |---|---|---|
 | **Entity page** | The item is editable — the default for a business record. | Enough space and structure to complete deeper work. |
-| **Read-only detail page** | The collection is display-only. | Fully readable, linkable, one back-click from the list. |
+| **Read-only side panel** | The collection is display-only. | Fully readable beside the list, full page height, closes back to the rows. |
 | **Modal** | A focused, bounded task that is not "open this record". | Attention stays on one task; the user returns cleanly. |
 | **Inline or expanded row** | A quick look *alongside* the drill-in, not instead of it. | Detail appears without a separate workspace. |
 
-Opening an item is a **route**; a side panel is not one of the choices — in Cairo it hosts a page's
-own panels. A constraint, not a preference, and it outranks "smallest interface". Patterns has no
-side panel at all; WDS `SidePanel` is the only one, and it is not a drill-in.
+An **editable** record opens as a route, never a panel — a constraint, not a preference, and it
+outranks "smallest interface". A **display-only** record is the exception: `EntityPage` has no
+read-only mode, so until patterns gains one its drill-in is a WDS `SidePanel` at full page height.
 
 Which Wix primitive builds each of these — and which components serve the summaries, filters and empty states named above — is in the installed package's `Collection Toolkit.md` guide — reached through [The Discovery Chain](../WIX_PATTERNS_DOCS.md#the-discovery-chain).
 
