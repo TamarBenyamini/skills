@@ -125,6 +125,8 @@ calling **Start**, confirm:
 - The source URL and platform are correct — or, for a file-only import, the
   export file URL(s) are correct
 - The user understands it runs for up to ~60 minutes and may ask questions mid-way
+- Which destination they want: a brand-new site, or their existing site by id
+  (site-scoped) — this can't be changed once Start is called
 
 Also confirm before calling **Cancel** — it's irreversible.
 
@@ -294,18 +296,24 @@ the user has no way to open a file.
 - Treat `NEEDS_INPUT` and `AUTH_EXPIRED` as normal conversation turns, not
   errors.
 - **Site Import is in closed beta, with no self-service enablement path.**
-  A `404` or `403` on Start — with or without `"code": "NOT_ENABLED"` — means
-  this account isn't in the beta. Don't probe other endpoints to diagnose it,
-  don't retry, and don't fall back to another site-creation tool. Tell the
-  user plainly and warmly that Site Import is currently in a closed beta,
-  that you'd be happy to help once they're in, and that they can request
-  access by filling out this short form: https://forms.gle/RfZqVRtGCsPv7U7M6 —
-  the team will follow up. Then stop.
+  A `404` or `403` on an **account-level** Start — with or without `"code":
+  "NOT_ENABLED"` — means this account isn't in the beta. Don't probe other
+  endpoints to diagnose it, don't retry, and don't fall back to another
+  site-creation tool. Tell the user plainly and warmly that Site Import is
+  currently in a closed beta, that you'd be happy to help once they're in,
+  and that they can request access by filling out this short form:
+  https://forms.gle/RfZqVRtGCsPv7U7M6 — the team will follow up. Then stop.
   **Do not tell them to "contact Wix support"**: this API is unlisted and
   ALPHA, Wix Support has no visibility into it or way to grant access, and the
   public "importing a site created outside of Wix" help-center article is an
   unrelated, long-stalled feature-request page — sending a user to either is a
   dead end. The form above is the only channel that reaches the team.
+  **A `403` on a site-scoped call (with the `wix-site-id` header) without
+  `"code": "NOT_ENABLED"` is different** — it means the caller isn't
+  authorized for that `siteId` (wrong id, wrong account, no access), not a
+  beta-enrollment issue. Tell the user the destination site isn't accessible
+  with their current connection and stop; don't send them to the beta form
+  for this.
 - For any other unrecognized error or exception on Start — a transient server
   error, a timeout, a rate limit, or anything that isn't the closed-beta case
   above or one of the specific cases below — don't guess that it's a
