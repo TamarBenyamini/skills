@@ -1,6 +1,6 @@
 ---
 name: "Pricing: Create Coupon"
-description: "PREFERRED recipe for converting a COUPON recommendation (mechanism: COUPON) into a Wix coupon. Use THIS entry — NOT the legacy setup-coupons entry which is superseded. Maps scope/discountType/conditions to Coupons V2 API fields."
+description: "PREFERRED recipe for creating, updating, or deleting a Wix coupon — including converting a COUPON recommendation (mechanism: COUPON) into one. Use THIS entry — NOT the legacy setup-coupons entry which is superseded. Maps scope/discountType/conditions to Coupons V2 API fields, and covers the merchant-confirmation guardrail for deleting an existing coupon."
 ---
 # Pricing: Create Coupon
 
