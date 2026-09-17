@@ -1,10 +1,10 @@
 ---
 name: "Manage Campaign Lifecycle"
-description: "Manages existing Google Ads campaigns on a Wix site: list/get, launch (first activation) vs resume (reactivate after a pause), pause a running campaign — optionally with a scheduled auto-resume date — update the campaign itself (name, budget, geo targets, ad schedule, keyword themes, assets), delete permanently, and read status history / change log. Use when the user wants to 'pause my Google ad', 'resume my campaign', 'stop the campaign', 'change my daily budget', 'rename the campaign', 'add a city to my targeting', 'delete this campaign', 'list my Google Ads campaigns', or 'why did my campaign status change'. Requires an existing Google Ads account and campaign. REST base https://www.wixapis.com/google-ads/v1."
+description: "Manages existing Google Ads campaigns on a Wix site: list/get, launch (first activation) vs resume (reactivate after a pause), pause a running campaign — optionally with a scheduled auto-resume date — update the campaign itself (name, budget, geo targets, ad schedule, keyword themes, assets), delete permanently, and read status history / change log. Use when the user wants to 'pause my Google ad', 'resume my campaign', 'stop the campaign', 'change my daily budget', 'rename the campaign', 'add a city to my targeting', 'delete this campaign', 'list my Google Ads campaigns', or 'why did my campaign status change'. Requires an existing Google Ads account and campaign. REST base https://www.wixapis.com/_serverless/pa-google/v1."
 ---
 # RECIPE: Manage Campaign Lifecycle
 
-Operate on campaigns that already exist. Base URL: `https://www.wixapis.com/google-ads/v1`; `<AUTH>` = `Authorization` header, and body calls also need `Content-Type: application/json`.
+Operate on campaigns that already exist. Base URL: `https://www.wixapis.com/_serverless/pa-google/v1`; `<AUTH>` = `Authorization` header, and body calls also need `Content-Type: application/json`.
 
 **Answer directly.** When the user asks *how* to do something, give the endpoint, an example request, and the key behavior right away — use `{campaignId}` as a placeholder rather than asking which campaign. Only pause to confirm when you are about to **execute** a launch, resume, update, or delete on the user's behalf (those spend money or are irreversible); explaining how never requires confirmation. **Executing an update is the one flow that also always needs the real campaign first** — see *Update a campaign* below.
 
@@ -21,14 +21,14 @@ Operate on campaigns that already exist. Base URL: `https://www.wixapis.com/goog
 
 ```bash
 # Launch (first activation)  → status LIVE
-curl -X POST 'https://www.wixapis.com/google-ads/v1/campaigns/{campaignId}/launch' -H 'Authorization: <AUTH>' -H 'Content-Type: application/json' -d '{}'
+curl -X POST 'https://www.wixapis.com/_serverless/pa-google/v1/campaigns/{campaignId}/launch' -H 'Authorization: <AUTH>' -H 'Content-Type: application/json' -d '{}'
 
 # Pause a running campaign (settings + data preserved) → status PAUSED
-curl -X POST 'https://www.wixapis.com/google-ads/v1/campaigns/{campaignId}/pause' -H 'Authorization: <AUTH>' -H 'Content-Type: application/json' \
+curl -X POST 'https://www.wixapis.com/_serverless/pa-google/v1/campaigns/{campaignId}/pause' -H 'Authorization: <AUTH>' -H 'Content-Type: application/json' \
   -d '{ "scheduledResumeDate": "2024-04-15T08:00:00.000Z" }'
 
 # Resume a paused campaign → status LIVE
-curl -X POST 'https://www.wixapis.com/google-ads/v1/campaigns/{campaignId}/resume' -H 'Authorization: <AUTH>' -H 'Content-Type: application/json' -d '{}'
+curl -X POST 'https://www.wixapis.com/_serverless/pa-google/v1/campaigns/{campaignId}/resume' -H 'Authorization: <AUTH>' -H 'Content-Type: application/json' -d '{}'
 ```
 
 - **Pause** stops delivery immediately without losing configuration. Optional body fields: `scheduledResumeDate` (ISO 8601 — the campaign **auto-resumes** at that time; pass `null` to cancel a scheduled resume), `resumeReminderDate` (dashboard reminder), `turnAutoRenewOff`. Send `{}` to pause with no auto-resume. To temporarily stop a campaign, **pause it — never delete**.
@@ -49,18 +49,18 @@ Never skip step 1 because the change looks small. Changing one number still send
 
 ```bash
 # 1. Read the current campaign
-curl -s 'https://www.wixapis.com/google-ads/v1/campaigns/{campaignId}' \
+curl -s 'https://www.wixapis.com/_serverless/pa-google/v1/campaigns/{campaignId}' \
   -H 'Authorization: <AUTH>' > campaign.json
 
 # 2. Change ONLY the daily budget; every other field stays exactly as it was read
 jq '{ campaign: (.campaign | .budget.amountMicros = "30000000") }' campaign.json > update.json
 
 # 3. Send the whole entity back
-curl -X PATCH 'https://www.wixapis.com/google-ads/v1/campaigns/{campaignId}' \
+curl -X PATCH 'https://www.wixapis.com/_serverless/pa-google/v1/campaigns/{campaignId}' \
   -H 'Authorization: <AUTH>' -H 'Content-Type: application/json' --data @update.json
 
 # 4. Verify what was stored
-curl -s 'https://www.wixapis.com/google-ads/v1/campaigns/{campaignId}' -H 'Authorization: <AUTH>'
+curl -s 'https://www.wixapis.com/_serverless/pa-google/v1/campaigns/{campaignId}' -H 'Authorization: <AUTH>'
 ```
 
 Building the body by hand instead of piping? Copy the `campaign` object out of the `GET` response verbatim and edit the one value in it. Do not retype it from the fields you happen to remember.
