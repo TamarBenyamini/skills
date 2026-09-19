@@ -69,6 +69,15 @@ and font, and the manual encoding is brittle. Use `curl` (or any direct HTTP
 client) for the whole flow — create and release are plain JSON, but the upload
 needs a real file client anyway, so keep all of it in the shell.
 
+**These direct calls need no auth.** Create, upload, release and the download are
+all **anonymous** — no token, no login, no credentials. So even if your Wix
+access is normally injected only into the API-call/execute-API tools, you do not
+need it here: call these endpoints directly from your shell with no auth header
+and they work. Don't reach for those tools just to borrow their credentials —
+there's nothing to authenticate. The **only** call that needs the user's identity
+is [step 4, claim](#4-put-the-site-in-the-users-account) (put the site in their
+account); everything up to and including the live URL is credential-free.
+
 The two calls that **must** use a direct file client are the ones that move a
 file:
 
@@ -248,6 +257,21 @@ environment with a shell and a filesystem. It keeps the **same site, appId and
 URL** — the downloaded project already carries a `wix.config.json` binding it to
 this site — and from then on the project is released with the Wix CLI, not the
 drop API.
+
+**This is the post-claim path — and it's why it needs `wix login`.** Once the
+site is claimed, changing it again is an *authenticated* operation, and there is a
+hard constraint to understand: authenticated **file** operations need the token in
+your shell, not in a tool. The drop flow avoided auth entirely (create / upload /
+release / download are anonymous), and claim is small JSON so it can go through
+the Wix API-call/execute-API tools or a shell token. But re-releasing files to a
+claimed site is authenticated *and* file-based — and the API-call/execute-API
+tools can't do file operations. So the way to keep building a claimed site is to
+`wix login` (which puts a real account/site token in your shell) and work through
+the **Wix CLI / headless project**. There is no lighter "re-upload static files to
+my claimed site" shortcut: if you need to keep changing a claimed site with code,
+it's the headless/CLI flow. (This is also why claiming *last* — iterating while
+the site is still anonymous, then claiming once it's right — keeps the simple
+path open for as long as possible.)
 
 **Download the project to disk, then follow the headless guide:**
 
