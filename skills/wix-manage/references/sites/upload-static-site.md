@@ -14,10 +14,14 @@ site.
 **[Path A — publish the files yourself](#path-a--publish-the-files-yourself).**
 Three unauthenticated calls — create a site, upload the files, release — and the
 user has a live URL in seconds, without ever leaving the conversation. Available
-when you can read the file bytes, because you generated them in this
-conversation or they are reachable from where you are running, **and** you can
-make outbound HTTPS requests. From there Path A finishes one of two ways, and
-both are complete answers:
+only when **both** hold: you can read the file bytes (you generated them in this
+conversation, or they are reachable from where you are running), **and** you can
+run a real HTTP file client from a shell — `curl` or equivalent that does a
+`multipart/form-data` upload from disk. Making requests **only** through the Wix
+API-call/execute-API tools does **not** qualify: those cannot pipe local files
+into a multipart upload (hand-building the body inline drops all binary assets),
+so an agent whose only outbound path is those tools must use Path B, not Path A.
+From there Path A finishes one of two ways, and both are complete answers:
 
 - **No user identity — the anonymous finish.** You hand over the live URL plus a
   save link the user opens to sign in and keep the site. This is the ordinary
@@ -30,12 +34,17 @@ both are complete answers:
 **[Path B — hand the user the drop page](#path-b--hand-the-user-the-drop-page).**
 One URL. The user drags their files in themselves, gets the same instantly
 hosted site, and signs in there to keep it. Use it when the files live only on
-the user's machine, or you cannot make arbitrary HTTP requests.
+the user's machine, when you cannot make arbitrary HTTP requests, or — even if
+you can call APIs — when you **cannot run a shell / direct file client** and your
+only way out is the Wix API-call/execute-API tools. This is the right answer for
+that case, not a consolation prize: the user gets the same hosted site.
 
-Prefer Path A whenever it is available — the user gets a live site without
-doing the upload themselves. But decide honestly: if you cannot read the bytes,
-you cannot publish them, so take Path B rather than reporting an upload you did
-not perform.
+Prefer Path A when it is genuinely available — the user gets a live site without
+doing the upload themselves. But decide honestly on both conditions: if you
+cannot read the bytes, or cannot do a real file upload from a shell, take Path B
+rather than attempting the API path and reporting an upload you could not
+actually perform. Do not try to force Path A through the API-call/execute tools;
+route to Path B instead.
 
 ## Path A — publish the files yourself
 
@@ -47,6 +56,37 @@ and finish the job yourself. Neither ending is a fallback for the other.
 ```
 Base URL: https://www.wixapis.com/headless-business-setup
 ```
+
+**Run this flow with your own shell / a direct HTTP client — not the Wix
+API-call or execute-API tools.** Step 2 is a `multipart/form-data` upload that
+reads files off disk, and the download in [Keep building](#keep-building-add-a-backend-when-you-need-one)
+writes a file to disk — both are filesystem operations. The Wix API-call/execute
+tools proxy a JSON request through the Wix API and return the result into the
+conversation; they cannot pipe your local files in or write a download out. In
+particular, do **not** hand-build a multipart body inside an execute-API call: it
+can only carry text you inline into the code, so it silently drops every image
+and font, and the manual encoding is brittle. Use `curl` (or any direct HTTP
+client) for the whole flow — create and release are plain JSON, but the upload
+needs a real file client anyway, so keep all of it in the shell.
+
+The two calls that **must** use a direct file client are the ones that move a
+file:
+
+- **Step 2, upload** — `POST …/{metaSiteId}/upload`, a `multipart/form-data`
+  request whose body is your files read from disk.
+- **The download** in [Keep building](#keep-building-add-a-backend-when-you-need-one)
+  — `GET …/instant-sites/{metaSiteId}/download.zip`, whose body is a zip you save
+  to disk.
+
+The other calls — **create** (`POST …/anonymous/{anonymousId}`) and **release**
+(`POST …/{metaSiteId}/release`) — are small JSON in, small JSON out; calling those
+through the Wix API-call/execute-API tools is fine, since you just read the
+returned `metaSiteId` / `uploadId` / `siteUrl` from the response. It's only the
+two file-transfer calls those tools can't do (they can't pipe a local file in or
+write a downloaded file out). So the real capability question for Path A is
+narrow: **can you do the multipart upload from disk?** If your only way to reach
+APIs is the API-call/execute-API tools, you can't — use Path B. Simplest when you
+can: run all of it with one shell/`curl`, since the upload needs it anyway.
 
 Generate `anonymousId` yourself — any UUID, **once per site, not once per
 request**. Reuse the same `anonymousId` and `metaSiteId` for every call for that
@@ -276,8 +316,10 @@ static files only — so the upload does not fail on the first try.
 - **Files you generated in this conversation, or files you can read** — Path A.
   Publish them, and if you hold the user's identity, put the site in their
   account and return the live URL and the dashboard.
-- **Site files only on the user's machine, or you cannot make HTTP calls** —
-  Path B, the drop URL.
+- **Site files only on the user's machine; or you cannot make HTTP calls; or you
+  have no shell / direct file client and can only reach APIs through the Wix
+  API-call/execute-API tools** — Path B, the drop URL. (Those tools can't do the
+  multipart file upload, so Path A is not open to you — send the user to the UI.)
 - **A change to a site you already published this way in this conversation** —
   [iterate in place](#iterate-on-the-site-dont-create-a-new-one) with the same
   ids; don't publish a new site.
