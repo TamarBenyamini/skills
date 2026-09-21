@@ -2,7 +2,7 @@
 
 **Applies to [DRAFT_TEMPLATE.md](DRAFT_TEMPLATE.md)'s Cases A, B and D.** All three need `PatternsReactRouter`, because in all three a row opens a page of its own — a panel is not the drill-in ([UX_SUCCESS_MODEL.md](UX_SUCCESS_MODEL.md)). Case A's detail route is read-only (§4); B and D route to a full `EntityPage`. The collection and settings components live in [DRAFT_TEMPLATE.md](DRAFT_TEMPLATE.md); this file covers only what a router adds — the entry file, the app shell, and the detail/entity page.
 
-Every snippet below is copied from the installed `dist/docs/*.md` this session read, not written from memory.
+Every snippet below is copied from the installed `dist/docs/*.md` this session read, not from memory.
 
 ## 1. Entry — `location` is manual in a Wix CLI app, and only because the router needs it
 
