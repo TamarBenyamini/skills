@@ -43,7 +43,7 @@ export default Page;
 ## 2. App shell — provider, router, routes
 
 ```tsx
-// {Feature}App.tsx — Case B or D
+// {Feature}App.tsx — Case A, B or D
 import { withDashboard } from '@wix/patterns';
 import { WixPatternsProvider } from '@wix/patterns/provider';
 import { PatternsReactRouter, PatternsReactRoute } from '@wix/patterns/router';
