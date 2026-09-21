@@ -9,13 +9,12 @@
 
 ## Two rules this skeleton encodes, so read them before editing it
 
-**Every row opens something, and which one depends on whether the record is editable.** An
-**editable** record navigates: `onRowClick` calls `navigateToEntityPage` to an `EntityPage` route
-([DRAFT_TEMPLATE_ROUTER.md](DRAFT_TEMPLATE_ROUTER.md)) — never a panel, because in Cairo a panel
-hosts a page's own side panels and no `example-bm` collection navigates a row into one. A
-**display-only** collection is the exception, and only because `EntityPage` has no read-only mode:
-it opens a full-height WDS `SidePanel` ([below](#read-only-rows-the-detail-side-panel)). A row that
-opens nothing is the defect either way.
+**Every row opens a page of its own, never a panel.** `onRowClick` navigates —
+`navigateToEntityPage` to an `EntityPage` route when the record is editable, or to a read-only
+detail route when the page is display-only ([DRAFT_TEMPLATE_ROUTER.md § 4](DRAFT_TEMPLATE_ROUTER.md#4-read-only-detail-route--case-a)).
+A WDS `SidePanel` is not the drill-in: in Cairo it is the host for a page's own side panels — the
+fields card's "Manage fields", a table's column panel — and `example-bm` uses it as a row drill-in
+in exactly nothing. Every collection example there navigates.
 
 **No `SummaryBar` unless the request asked for one.** Not "unless the page seems to want one" —
 unless the prompt named a total, a count, or a "how many / how much" figure. It is absent from this
@@ -120,9 +119,9 @@ export const {Feature}CollectionPage: FC = () => {
               action={{ text: 'Retry', onClick: retry }}
             />
           )}
-          // The drill-in for an EDITABLE record: the EntityPage route. Passing `entity`
-          // lets the target title itself before its fetch lands. A display-only
-          // collection uses `onRowClick={setSelected}` and the side panel instead.
+          // The drill-in. Editable record → the EntityPage route (`/${item.id}`).
+          // Display-only → the read-only route, DRAFT_TEMPLATE_ROUTER.md §4. Either way a
+          // route, and passing `entity` lets the target title itself before its fetch lands.
           onRowClick={(item) => navigateToEntityPage({ path: `/${item.id}`, entity: item })}
           columns={[
             // One column per field the prompt names; verify each source field —
@@ -135,59 +134,3 @@ export const {Feature}CollectionPage: FC = () => {
   );
 };
 ```
-
-## Read-only rows: the detail side panel
-
-Case A only. `EntityPage` has no read-only mode — `useEntityPageHeader` composes
-`EntityPageActionsBar` unconditionally and that bar always renders Save and Cancel — so a
-display-only record opens into a WDS `SidePanel` instead, and keeps the filtered list on screen.
-The moment the request grows an edit form this becomes an `EntityPage` route instead
-([DRAFT_TEMPLATE_ROUTER.md](DRAFT_TEMPLATE_ROUTER.md)).
-
-**`height="100vh"` is the whole point.** `SidePanel`'s `height` defaults to `'100%'`, which fills
-its *parent* — inside a `CollectionPage` body that is the table's height, so the panel arrives
-short and the record looks cropped. Pair it with `Content stretchVertically` so the body fills the
-panel and scrolls inside it. `width` defaults to `420px`.
-
-```tsx
-// {Feature}DetailPanel.tsx — Case A
-import { Card, SidePanel, Text } from '@wix/design-system';
-import type { {Entity}Row } from './{feature}-api';
-
-export const {Feature}DetailPanel = ({
-  entity, onClose,
-}: { entity: {Entity}Row; onClose: () => void }) => (
-  <SidePanel height="100vh" closeButtonProps={{ onClick: onClose }}>
-    <SidePanel.Header title={entity.name} />
-    <SidePanel.Content stretchVertically>
-      <Card>
-        <Card.Content>
-          <Text>{entity.name}</Text>
-        </Card.Content>
-      </Card>
-    </SidePanel.Content>
-  </SidePanel>
-);
-```
-
-Hold the open record in the collection page and render the panel beside the table —
-`const [selected, setSelected] = useState<{Entity}Row>()`, `onRowClick={setSelected}`, and
-`{selected && <{Feature}DetailPanel entity={selected} onClose={() => setSelected(undefined)} />}`.
-Use `closeButtonProps`, not `onCloseButtonClick`: that one is deprecated.
-
-**If the detail needs fields the row doesn't carry, the panel fetches too.** `onRowClick` hands you
-the table row, which is usually a projection — so a panel that shows more than the table already
-showed needs its own call, keyed off the row's id:
-
-```tsx
-const [detail, setDetail] = useState<{Entity} | undefined>();
-
-useEffect(() => {
-  setDetail(undefined);
-  fetch{Entity}(entity.id).then(setDetail);
-}, [entity.id]);
-```
-
-Render a `Loader` inside `SidePanel.Content` until `detail` arrives. The `setDetail(undefined)` on
-every id change is the part that gets skipped: without it the panel shows the previous record's
-fields while the new one loads, which reads as the wrong record rather than a pending one.
