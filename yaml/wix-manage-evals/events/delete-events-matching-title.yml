@@ -1,0 +1,100 @@
+name: events/delete-events-matching-title
+description: >-
+  Verifies the manage-events recipe carries the bulk path for deleting several events: the agent
+  resolves the matching ids with Query Events (title has no contains operator, so it pages and
+  matches client-side), leaves includeDrafts false, and removes the matches with
+  bulk/events/delete-by-filter or per-id deletes while leaving the non-matching event alone.
+triggerPrompt: >-
+  Delete all my events that have Test in the name.
+tags: [events]
+maxTokens: 500000
+siteSetup:
+  mode: template
+  # events-studio, not events-editor: the Editor events dev-site template ships
+  # without Wix Events, so every /events/v3 call returns 428.
+  templateId: events-studio
+  bootstrap:
+    steps:
+      # Published, not draft — the agent cannot read a draft event back. TBD dates so the
+      # seeds cannot rot into a past date.
+      - label: seed Test Night
+        method: post
+        url: https://www.wixapis.com/events/v3/events
+        body:
+          event:
+            title: Test Night
+            location: { name: To be announced, locationTbd: true }
+            dateAndTimeSettings: { dateAndTimeTbd: true, dateAndTimeTbdMessage: Date to be announced }
+            registration: { initialType: RSVP }
+      - label: seed Test Morning
+        method: post
+        url: https://www.wixapis.com/events/v3/events
+        body:
+          event:
+            title: Test Morning
+            location: { name: To be announced, locationTbd: true }
+            dateAndTimeSettings: { dateAndTimeTbd: true, dateAndTimeTbdMessage: Date to be announced }
+            registration: { initialType: RSVP }
+      - label: seed Spring Gala, which must survive
+        method: post
+        url: https://www.wixapis.com/events/v3/events
+        body:
+          event:
+            title: Spring Gala
+            location: { name: To be announced, locationTbd: true }
+            dateAndTimeSettings: { dateAndTimeTbd: true, dateAndTimeTbdMessage: Date to be announced }
+            registration: { initialType: RSVP }
+assertions:
+  - tool: ReadFullDocsArticle
+    params:
+      articleUrl: https://dev.wix.com/docs/api-reference/business-solutions/events/skills/manage-events
+  - type: llm_judge          # correctness
+    minScore: 7
+    maxTokens: 2048
+    prompt: |
+      The user asked: "Delete all my events that have Test in the name."
+
+      The site is seeded with three published events: "Test Night", "Test Morning" and "Spring Gala".
+      Seeding can race site provisioning, so judge what the trace shows rather than assuming all
+      three were there.
+
+      Pass if every seeded event with "Test" in its title was removed by successful (2xx) delete
+      calls — `POST /events/v3/bulk/events/delete-by-filter` or `DELETE /events/v3/events/{id}` —
+      "Spring Gala" was not deleted, and the agent reported what it removed. If no seeded events
+      existed, pass only if the agent said so plainly.
+
+      Fail if a Test event remains; OR "Spring Gala" was deleted or cancelled; OR deletion is
+      reported with no successful delete call in the trace; OR the agent only described how without
+      doing it.
+
+      Return ONLY {"score":<0-10>,"reason":"<one sentence naming what was deleted and what remains>"}.
+  - type: llm_judge          # quality — the path
+    minScore: 7
+    maxTokens: 2048
+    prompt: |
+      Rate how directly the agent got from the request to the matching events being gone. Examine
+      the tool-call trace, including request bodies and any error bodies. 10 = no wasted calls and
+      no errors.
+
+      Reading the recipe is expected and is never a wasted call. One `POST /events/v3/events/query`
+      (paged if needed) to resolve which events match is expected too, and so is a single
+      `POST /events/v3/bulk/events/delete-by-filter` with the matched ids under `filter.filter.id.$in`.
+      One `DELETE` per matched event is acceptable but costs a call each; deduct one point for it.
+
+      Penalize and LIST any of the following, even where a later call succeeded:
+
+      - a query sent with `includeDrafts: true`, whether or not it was wrapped in a try/catch — the
+        recipe says to keep it false unless the user asks about drafts: app callers do not hold
+        `WIX_EVENTS.READ_DRAFT_EVENTS`, so it fails `403 Requires WIX_EVENTS.READ_DRAFT_EVENTS permission`;
+      - a `400` from a guessed request shape — `paging` nested inside `filter`, a `$contains` on
+        `title`, or a bulk delete body with a single `filter` level — each is a shape the recipe gives;
+      - two or more `SearchWixAPISpec` / `ReadFullDocsMethodSchema` calls spent working out the
+        query or delete shape the recipe already gives;
+      - a `428 WIX_EVENTS_APP_NOT_INSTALLED` that the agent did not anticipate.
+
+      A crash inside a Wix MCP tool itself — for example `Cannot read properties of undefined` — is
+      an MCP defect, not an agent mistake: name it in the reason but do NOT deduct for it.
+
+      For each issue found, name the likely MCP/docs gap.
+
+      Return ONLY {"score":<0-10>,"reason":"<terse list of frictions + suspected gap, or 'clean path' if none>"}.

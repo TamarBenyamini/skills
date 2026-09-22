@@ -47,6 +47,9 @@ curl -X POST 'https://www.wixapis.com/events/v3/events/query' \
   }'
 ```
 
+`filter` and `paging` are siblings under `query`; `paging` nested inside `filter` fails `400`. Matches
+come back in `events[]` with the id at `events[].id`, and `pagingMetadata.total` is the count.
+
 For "every event with *Test* in the name", query without a `title` filter (page with `paging.offset`
 until `pagingMetadata.total` is reached) and match the titles yourself.
 
@@ -69,14 +72,15 @@ until `pagingMetadata.total` is reached) and match the titles yourself.
 Publish and cancel take an empty body. Publishing is irreversible — a published event cannot
 return to `DRAFT`. Cancelling closes registration but keeps the event; deleting removes it.
 
-To delete a set of events in one call, `POST /events/v3/bulk/events/delete-by-filter` takes the same
-`filter` grammar as Query Events, nested one level deeper:
+To delete a set of events in one call, `POST /events/v3/bulk/events/delete-by-filter`:
 
 ```json
 { "filter": { "filter": { "id": { "$in": ["<EVENT_ID>", "<EVENT_ID>"] } } } }
 ```
 
-Resolve the ids with the query above first; one `DELETE` per event also works but costs a call each.
+The outer `filter` is the bulk request's one field; the inner `filter` is the same grammar as
+`query.filter` on Query Events, so the doubled key is deliberate, not a typo. Resolve the ids with the
+query above first; one `DELETE` per event also works but costs a call each.
 
 > **Draft events need the `WIX_EVENTS.READ_DRAFT_EVENTS` permission.** Without it, publishing a
 > draft fails `403` — as does querying it, fetching it by slug, or adding ticket definitions to
