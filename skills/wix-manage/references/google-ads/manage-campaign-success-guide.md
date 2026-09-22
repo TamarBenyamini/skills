@@ -133,10 +133,8 @@ Read `account.id`, `account.merchantCenterAccountId`, and `account.merchantCente
 Example with several Editor tasks, supported connection work, and a completed campaign task:
 
 ```markdown
-## Campaign success guide
+## Campaign success guide — Request a Quote campaign
 Landing page: [Request a quote](https://www.example.com/request-a-quote)
-
-**4 open recommendations**
 
 ### Start here
 1. **Add contact details**
