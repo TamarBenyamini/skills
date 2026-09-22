@@ -42,18 +42,19 @@ curl -X POST 'https://www.wixapis.com/events/v3/events/query' \
       "filter": { "title": { "$eq": "Open House" } },
       "paging": { "limit": 100 }
     },
-    "fields": ["DETAILS"]
+    "fields": ["DETAILS"],
+    "includeDrafts": false
   }'
 ```
 
 For "every event with *Test* in the name", query without a `title` filter (page with `paging.offset`
 until `pagingMetadata.total` is reached) and match the titles yourself.
 
-> **Send `includeDrafts: true` only when the user is asking about draft events.** The query returns
-> published events by default; the flag needs `WIX_EVENTS.READ_DRAFT_EVENTS`, and a caller without it
-> gets `403 Requires WIX_EVENTS.READ_DRAFT_EVENTS permission` rather than more results. Do not add
-> the flag as a precaution on an ordinary lookup, and do not probe for it and fall back. If the user
-> does want drafts and the call returns that `403`, say draft events are not readable from this
+> **Keep `includeDrafts: false` unless the user is asking about draft events.** Setting it to `true`
+> needs `WIX_EVENTS.READ_DRAFT_EVENTS`, and a caller without it gets
+> `403 Requires WIX_EVENTS.READ_DRAFT_EVENTS permission` rather than more results — so do not flip
+> it as a precaution on an ordinary lookup, and do not probe for it and fall back. If the user does
+> want drafts and the call returns that `403`, say draft events are not readable from this
 > connection instead of answering from published events alone.
 
 ## Publish, cancel and delete
@@ -142,7 +143,7 @@ even when the site has events, so it is not the way to answer "how many events d
 - **An invalid enum value reports as a missing one** — a value outside an enum returns
   `<field> value is required` rather than "invalid value". If a field you *did* send is reported
   as required, suspect the value, not its presence.
-- **`includeDrafts: true` is for requests about drafts, not a precaution** — see
+- **`includeDrafts` stays `false` unless the request is about drafts** — see
   [Find an event](#find-an-event). The `WIX_EVENTS.READ_DRAFT_EVENTS` note on the Query Events
   reference describes the permission; it does not mean the caller has it.
 - Dates are always ISO-8601 strings, never `{seconds, nanos}`, and `timeZoneId` is required
