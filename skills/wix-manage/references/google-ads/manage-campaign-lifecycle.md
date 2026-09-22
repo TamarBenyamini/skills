@@ -36,7 +36,7 @@ curl -X POST 'https://www.wixapis.com/_serverless/pa-google/v1/campaigns/{campai
 
 ## Update a campaign — read it first, send it whole
 
-`PATCH /v1/campaigns/{campaignId}` — **send the whole campaign with your change applied.** The server diffs what it receives against the stored campaign and patches the difference, so the payload is not a delta you compose yourself. Data missing from it is usually rejected by a validation guard, and in the cases those guards don't yet cover it corrupts the campaign and still returns `200`. Arrays are the sharpest edge: send one partially and the items you left out are removed, or the call errors when an item is required.
+`PATCH /v1/campaigns/{campaignId}` — **send the whole campaign with your change applied.** The server derives the field mask from the campaign object you send — diffing it against the stored campaign and patching the difference — so the payload is not a delta you compose yourself, and there is no `updateMask` for you to set. Data missing from it is usually rejected by a validation guard, and in the cases those guards don't yet cover it corrupts the campaign and still returns `200`. Arrays are the sharpest edge: send one partially and the items you left out are removed, or the call errors when an item is required.
 
 **So the payload is never assembled from what the user asked for.** The user supplies the *change* ("make it $30 a day", "rename it to Spring Sale"), usually with a campaign name at best. The body has to be the *whole campaign* with that change applied — which you cannot produce without reading the campaign first.
 
@@ -111,7 +111,7 @@ Each entry in `locations` is `{ "location": { "geoTargetConstant": "geoTargetCon
 
 Budget is in **micros** (`30000000` = $30.00/day). Over the account max → `CAMPAIGN_DAILY_BUDGET_TOO_HIGH` (check `GET /v1/campaign/daily-budget-boundaries`, returns min/max in micros).
 
-**`id`, `accountId` and `campaignType` are required on every update** — they ride along automatically when you send the entity as read, but a hand-built body that omits one is rejected.
+**`id`, `accountId`, `campaignType` and `locations` are required on every update** — they ride along automatically when you send the entity as read, but a hand-built body that omits one is rejected. `locations` is required even when the change has nothing to do with targeting, and it must hold at least one entry.
 
 **`campaignType` never changes.** Send back exactly the value the read returned — `SMART`, `PERFORMANCE_MAX` or `PERFORMANCE_MAX_LEADS`. It is fixed at creation: a mismatched value is rejected, and there is no conversion between types — a campaign of a different type has to be created fresh. It also decides which block the payload carries (`smartCampaign` for `SMART`, `performanceMaxCampaign` for the two PMAX types); sending the block that doesn't match the type is the same mistake.
 
@@ -133,6 +133,11 @@ Budget is in **micros** (`30000000` = $30.00/day). Over the account max → `CAM
 | Fields vanished after an update (targeting, assets, name) | The `PATCH` body was partial, and no guard caught it. Re-`GET`, rebuild the full entity, `PATCH` it back, and verify by reading again |
 | 5xx with no actionable message on a `SMART` update | A field the Smart handler hard-requires was omitted — `smartCampaign.adGroups` / `url` / `languageCode` / `businessName` (and `phone` for call ads). Re-`GET` and resend the full entity |
 | An update was rejected for a read-only field | Drop only the field the error names (`status`, `resourceName`, `createdDate`, `updatedDate`, `actionDate`, `reportingKey`) and resend the rest of the entity |
+| `RESTRICTED_LOCATION` | A geo target in `locations` can't be targeted — drop it and pick another |
+| `MISSING_CAMPAIGN_LANGUAGE` | Language targeting missing or blank — it came back on the read, so send it through unchanged |
+| `INVALID_CAMPAIGN_BUDGET_AMOUNT` | `budget.amountMicros` must be a positive integer in micros, sent as a string |
+| `DUPLICATE_CAMPAIGN_NAME` | Another campaign on the account already has that name — rename differently |
+| `ACCOUNT_NOT_ENABLED` | The Google Ads account isn't enabled; fix the account before updating |
 | `CUSTOM_CHARGES_SUBSCRIPTION_EXPIRED` / `…_AUTO_RENEWAL_OFF` | Renew / re-enable auto-renewal (Resume accepts `turnAutoRenewOn`) |
 
 ## References
