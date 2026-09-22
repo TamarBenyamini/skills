@@ -57,11 +57,12 @@ share the same colors and typography.
 
 ## STEP 3 — Wire routes + provider (surgical `find_replace` on `src/App.jsx`, never a rewrite)
 
-> **The template decides this step.** The install's `deploy` result named it —
-> `"template": "react-router"` or `"tanstack"` — and wrote the matching `src/lib/nav.js`, which is
-> what the shipped files' `@/lib/nav` imports resolve to. The wiring below is the React Router
-> form; on TanStack use the route files at the end of this step
-> ([both patterns](../_shared/routing.md)).
+> **The template decides this step, and `src/routes/__root.jsx` is the question to ask first.**
+> Present → TanStack Start, which mounts these pages as route files at the end of this step; absent
+> → React Router, which the wiring below is written for. Ask in that order: an `src/App.jsx` can
+> exist on a TanStack app because an agent created one, and `__root.jsx` is never there by mistake.
+> The installed `src/lib/nav.js` defaults to the React Router adapter, so on TanStack swap it:
+> [both patterns](../_shared/routing.md).
 
 **No file reads needed to wire this.** Every shipped page and `WixManageBanner` is a default export that takes **no props** — wire them exactly as the snippet shows; nothing in those files needs looking up.
 `App.jsx` carries required platform auth scaffolding (`AuthProvider`/`useAuth`) — edit it in, don't
