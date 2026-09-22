@@ -96,7 +96,18 @@ The entire asset group rides along — every headline, description, image and ex
 | Add or remove one geo target | The complete new `locations` array — plus everything above |
 | Edit one asset or keyword theme | The complete asset group / theme list — plus everything above |
 
-**A new geo target needs a `geoTargetConstant`, which you have to resolve first.** `GET /v1/geo-options?queryLocation=Brooklyn&languageCode=en&countryCode=US` returns candidates whose `id` is a bare number (`"1023191"`); the campaign wants it wrapped as `geoTargetConstants/1023191`. Never invent or hardcode one. Each entry in `locations` is `{ "location": { "geoTargetConstant": "geoTargetConstants/1023191" }, "displayName": "Brooklyn, New York" }` — the same shape the read returns for the targets already there, so append one to that array rather than building a new one. Full contract, including proximity targeting and restricted locations: [Get Campaign Suggestions](get-campaign-suggestions.md) § Geo targets.
+**A new geo target needs a `geoTargetConstant`, which you have to resolve first — never invent or hardcode one.**
+
+```bash
+curl -s 'https://www.wixapis.com/_serverless/pa-google/v1/geo-options?queryLocation=Brooklyn&languageCode=en&countryCode=US' \
+  -H 'Authorization: <AUTH>'
+```
+
+→ `{ "googleSuggestion": { "geoTargetsSuggestions": { "geoTargets": [ { "id": "geoTargetConstants/1022762", "displayName": "Brooklyn,New York,United States", "countryCode": "US" }, … ] } } }`
+
+The `id` already carries the `geoTargetConstants/` prefix — use it verbatim, don't wrap it again. A query matches loosely and returns near-namesakes first (`Brooklyn Park,Minnesota`, `Brooklyn,Ohio`), so pick the entry by its `displayName`, and put the choice to the user when more than one is plausible.
+
+Each entry in `locations` is `{ "location": { "geoTargetConstant": "geoTargetConstants/1022762" }, "displayName": "Brooklyn,New York,United States" }` — the same shape the read returns for the targets already there, so append to that array rather than building a new one. (`resourceName` also comes back on each entry; it is read-only and belongs to the target already stored, so never invent one for an entry you are adding.) Full contract, including proximity targeting and restricted locations: [Get Campaign Suggestions](get-campaign-suggestions.md) § Geo targets.
 
 Budget is in **micros** (`30000000` = $30.00/day). Over the account max → `CAMPAIGN_DAILY_BUDGET_TOO_HIGH` (check `GET /v1/campaign/daily-budget-boundaries`, returns min/max in micros).
 

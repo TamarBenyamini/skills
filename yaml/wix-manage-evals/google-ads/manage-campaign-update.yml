@@ -35,6 +35,11 @@ assertions:
       - reports the result against what the campaign actually holds afterwards,
         rather than asserting success from the PATCH response alone.
 
+      The runs share one campaign, so the budget may already be at $30/day when
+      the agent reads it. Passing then means saying so and leaving it alone; a
+      full-entity PATCH that rewrites the same value also passes. Only skipping
+      the read, or sending a partial body, fails.
+
       Fail if the response:
       - sends a PATCH containing only id/accountId/budget, or any body assembled
         solely from what the user asked to change; OR
