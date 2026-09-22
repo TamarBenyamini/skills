@@ -96,6 +96,8 @@ The entire asset group rides along — every headline, description, image and ex
 | Add or remove one geo target | The complete new `locations` array — plus everything above |
 | Edit one asset or keyword theme | The complete asset group / theme list — plus everything above |
 
+**A new geo target needs a `geoTargetConstant`, which you have to resolve first.** `GET /v1/geo-options?queryLocation=Brooklyn&languageCode=en&countryCode=US` returns candidates whose `id` is a bare number (`"1023191"`); the campaign wants it wrapped as `geoTargetConstants/1023191`. Never invent or hardcode one. Each entry in `locations` is `{ "location": { "geoTargetConstant": "geoTargetConstants/1023191" }, "displayName": "Brooklyn, New York" }` — the same shape the read returns for the targets already there, so append one to that array rather than building a new one. Full contract, including proximity targeting and restricted locations: [Get Campaign Suggestions](get-campaign-suggestions.md) § Geo targets.
+
 Budget is in **micros** (`30000000` = $30.00/day). Over the account max → `CAMPAIGN_DAILY_BUDGET_TOO_HIGH` (check `GET /v1/campaign/daily-budget-boundaries`, returns min/max in micros).
 
 **`id`, `accountId` and `campaignType` are required on every update** — they ride along automatically when you send the entity as read, but a hand-built body that omits one is rejected.
