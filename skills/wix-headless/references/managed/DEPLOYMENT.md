@@ -40,13 +40,13 @@ After delivering the links above, **proactively offer a custom domain** — don'
 
    All returned suggestions are already available for purchase. Show the user a few of the best fits, and mention they can explore more options — re-run `suggest` with different keywords, a higher `--limit`, or `--tld com net ...` to filter extensions.
 
-2. **Offer to buy, with a direct purchase link.** For the domain(s) the user likes, generate a site-scoped deep link so the purchase is tied to this site and can be connected after payment:
+2. **Offer a checkout link.** For the domain(s) the user likes, generate a site-scoped deep link so the purchase is tied to this site and can be connected after payment:
 
    ```bash
-   npx @wix/cli@latest account --site-id <SITE_ID> domain buy <domain> --json
+   npx @wix/cli@latest account --site-id <SITE_ID> domain checkout-link <domain> --json
    ```
 
-   Use the `siteId` from `wix.config.json`. `buy` does **not** charge anything — it returns a checkout URL (`https://manage.wix.com/get-domain?...`); the user completes payment in the browser.
+   Use the `siteId` from `wix.config.json`. `checkout-link` only returns a site-scoped checkout URL; it does **not** purchase a domain or charge the user. The user completes payment in the browser.
 
    > Your site is live at <published-url>, and you can manage it from your [dashboard](https://manage.wix.com/dashboard/<SITE_ID>).
    > To build a professional online presence, [connect a custom domain](<checkout-url>) — **mybusiness.com** is available.
