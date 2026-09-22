@@ -51,7 +51,9 @@ curl -X POST 'https://www.wixapis.com/events/v3/events/query' \
 come back in `events[]` with the id at `events[].id`, and `pagingMetadata.total` is the count.
 
 For "every event with *Test* in the name", query without a `title` filter (page with `paging.offset`
-until `pagingMetadata.total` is reached) and match the titles yourself.
+until `pagingMetadata.total` is reached) and match the titles yourself. That match is yours, not the
+API's — *Testimonial Night* also contains *Test* — so before deleting or changing what it found, show
+the user the matched titles and wait for a go-ahead.
 
 > **Keep `includeDrafts: false` unless the user is asking about draft events.** Setting it to `true`
 > needs `WIX_EVENTS.READ_DRAFT_EVENTS`, and a caller without it gets
@@ -80,7 +82,8 @@ To delete a set of events in one call, `POST /events/v3/bulk/events/delete-by-fi
 
 The outer `filter` is the bulk request's one field; the inner `filter` is the same grammar as
 `query.filter` on Query Events, so the doubled key is deliberate, not a typo. Resolve the ids with the
-query above first; one `DELETE` per event also works but costs a call each.
+query above first and, when they came from a client-side title match, confirm the list with the user
+before this call; one `DELETE` per event also works but costs a call each.
 
 > **Draft events need the `WIX_EVENTS.READ_DRAFT_EVENTS` permission.** Without it, publishing a
 > draft fails `403` — as does querying it, fetching it by slug, or adding ticket definitions to
