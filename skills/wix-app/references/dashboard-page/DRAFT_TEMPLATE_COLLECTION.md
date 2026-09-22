@@ -134,3 +134,51 @@ export const {Feature}CollectionPage: FC = () => {
   );
 };
 ```
+
+## Turning `query.search` into a query
+
+`{feature}-api.ts` turns one term into a filter over *several* fields — an OR. **This is where
+search ships broken**: it renders, it reaches the query, and still returns every row, so nothing
+looks wrong until someone counts results.
+
+### A CMS collection — `@wix/data`
+
+`or()` combines two filters; it is **not** a condition. Called on a query or filter holding no
+condition yet it contributes an empty `{}` branch, and `{} OR x` matches the whole collection. Seed
+the filter with the first field, `or()` the rest onto it, then `and()` it onto the query — which is
+also what keeps the facet filters applying to *every* branch:
+
+```ts
+// SHORT_TEXT / LONG_TEXT fields only: `contains` on a number, date or
+// reference field is not a narrower match, it is no match.
+const searchFilter = (term: string, fields: string[]) =>
+  fields.map((f) => items.filter().contains(f, term)).reduce((acc, f) => acc.or(f));
+
+let query = items.query(COLLECTION_ID).eq('status', status).limit(limit);
+const term = search?.trim();
+if (term) query = query.and(searchFilter(term, ['companyName', 'contactEmail']));
+
+// ❌ or() onto a query holding no condition — empty $or branch, every row matches
+items.query(ID).or(items.filter().contains('a', t)).or(items.filter().contains('b', t));
+// ❌ or() onto the query itself — `status` survives only on the first branch
+items.query(ID).eq('status', s).contains('a', t).or(items.filter().contains('b', t));
+```
+
+### A vertical SDK — `@wix/bookings`, `@wix/ecom`, …
+
+No shared free-text operator; the shape differs per endpoint. Read its *Supported Filters* page
+([QUERY_AND_PAGING.md](QUERY_AND_PAGING.md#the-filterable-fields-are-a-closed-list-published-per-endpoint)),
+then `$or` one clause per identity field it lists. Never route the term to a single field by its
+shape — a measured run shipped this, and one branch is always dead:
+
+```ts
+query = term.includes('@')
+  ? query.startsWith('loginEmail', term)
+  : query.startsWith('contact.firstName', term);  // a surname matches nothing, ever
+```
+
+`startsWith` is prefix-only too — "Smith" never finds "John Smith" — so prefer the containment
+operator when the endpoint declares one, and say which you used in `noResultsState`.
+
+**Whatever the shape, prove it narrows.** Run one term you expect to hit a known row and one you
+expect to hit nothing, and check the row count changes for both.
