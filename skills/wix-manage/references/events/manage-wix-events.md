@@ -74,6 +74,10 @@ report what you did.
 Publish and cancel take an empty body. Publishing is irreversible — a published event cannot
 return to `DRAFT`. Cancelling closes registration but keeps the event; deleting removes it.
 
+Publish, cancel, clone and update all return `{ "event": { "id", "title", "slug", "status", ... } }`
+— the same event object [Create an Event](create-wix-event.md#create-the-event) shows in full.
+Delete returns `{ "eventId": "..." }` and the bulk delete below returns `{}`.
+
 To delete a set of events in one call, `POST /events/v3/bulk/events/delete-by-filter`:
 
 ```json
