@@ -69,13 +69,15 @@ curl -X POST \
 
 The first call may analyze the landing page, campaign configuration, and relevant site connections and can take up to **120 seconds**. Later calls normally return the saved guide unless campaign changes require another analysis. Wait for the request; do not retry prematurely. If execution times out with an unknown outcome, report the uncertainty and retrieve the guide later instead of immediately triggering another analysis.
 
-Present only the suggestions the API returns and preserve their order; `suggestions` is already in priority order. An empty array means no currently detected items need attention, not an API failure. Show `campaignSuccessGuide.url` when it helps identify the analyzed landing page.
+Present suggestions in batches of three, in the API's priority order; `suggestions` is already in priority order, so slice it into groups of three without reordering — never present the full remaining list in one turn. An empty array means no currently detected items need attention, not an API failure. Show `campaignSuccessGuide.url` when it helps identify the analyzed landing page.
 
 `OPEN` means pending action. `COMPLETED` means the user marked the item completed; it does **not** mean the API changed the site or campaign for them. This status is internal bookkeeping only — see below for what to show the user.
 
 ## Present the guide as an actionable plan
 
 Do not return a bare list of task labels. Turn the returned suggestions into a list of independent, self-contained tasks, one per suggestion, preserving the API's order. Do not group suggestions together or defer any part of a task — such as its CTA or its offer to help — into a separate shared block.
+
+Show three tasks per batch, never more, in priority order. Track which `OPEN` suggestions have already been shown this conversation so the next batch continues where the last one left off instead of repeating or reordering. If retrieving the guide again returns items not yet shown, fold them into the remaining batches at their priority position rather than appending them at the end.
 
 Never show suggestion status, or words like "Pending" or "Marked complete," to the user; it's internal state for deciding what to present and for handling reopen requests. Present only `OPEN` suggestions as tasks. Skip `COMPLETED` suggestions entirely rather than listing them without a status, since that would misrepresent finished work as still open. If the user asks what they've already completed, or asks to reopen an item, answer from the internal status without adding status labels to the plan. If every returned suggestion is `COMPLETED`, or the array is empty, say there's nothing pending right now instead of presenting an empty or partial plan.
 
@@ -85,6 +87,9 @@ Build the plan like this:
 2. For every `OPEN` suggestion, show its user-facing label and one concrete next step. Do not show enum values or tracking status unless resolving an ambiguity requires it.
 3. Within that same task, first describe the change itself, then say explicitly whether the agent can do it or the user must do it themselves — never leave the second part to be inferred from the presence or absence of a CTA, and never state it before the description. `GOOGLE_ADS_SEARCH_THEMES`, `GOOGLE_MERCHANT_CENTER_CONNECTION`, and `GOOGLE_BUSINESS_PROFILE_CONNECTION` are the only agent-performed actions, each backed by a concrete API call described in its own row below and in the flows that follow the table. Every other suggestion type is on the user — the agent has no capability to edit landing-page content or fix mobile/speed issues itself. For an agent-performed task, follow the description with that row's specific offer (e.g., "...such as 'artisan bakery.' I can propose a relevant set and apply it once you approve."). For every other task, follow the description with a plain, non-commanding note of where the change can be made rather than an instruction directed at the user (e.g., "...without scrolling. This change can be made in the Editor."), paired with the Editor CTA. Never blur the two into one ambiguous sentence, and never move this statement into a separate closing question or a block shared across tasks.
 4. The "Which action to offer" table below states, per suggestion type, whether the task needs a CTA and where it points. When a task needs one, put that CTA inline in the task. A task keeps its own CTA even when another task in the same plan points to the same destination — never merge, dedupe, or move CTAs into a shared or closing section.
+5. If any `OPEN` suggestions remain unshown after this batch, close with an invitation to see more — worded so it covers all the reasons a user might ask, not just one (e.g., "Done with these, don't think they apply, or just curious what else is on the list? Say the word and I'll show the next batch."). Skip this invitation once every `OPEN` suggestion has been shown; say so plainly instead (e.g., "That's everything currently open.").
+
+When the user asks for more — whether because they finished the shown tasks, don't think they apply, or are just curious — present the next batch of up to three not-yet-shown `OPEN` suggestions using the same per-task format and the same closing rule above. This request is itself approval to show the next batch; do not ask for confirmation first.
 
 Resolving navigation is read-only and does not require approval, including when the user says not to change anything yet. Use the selected site's `id` and `editUrl` from available site context. If the current-site ID is known but `editUrl` is absent, look up the site's navigation metadata through an available site-listing capability once; select only the result whose `id` or `metaSiteId` exactly matches that current-site ID, then read its `displayName`, `editUrl`, and `editorType`. Do not inspect other sites for campaigns. When no current-site ID is known and the lookup returns exactly one site, use it. When several sites are available and none is selected, present the tasks that don't need a CTA immediately and ask which site's CTAs to add for the rest.
 
@@ -130,9 +135,11 @@ Landing page: [Request a quote](https://www.example.com/request-a-quote)
    [Go to Editor]({editUrl})
 3. **Configure Google Ads search themes**
    Add search themes to sharpen this campaign's targeting. I can propose a relevant set and apply it once you approve.
+
+Done with these, don't think they apply, or just curious what else is on the list? Say the word and I'll show the next batch.
 ```
 
-Each task carries its own CTA and its own offer, and each one describes the change first, then says outright who does the work. Tasks 1 and 2 are on the user — the agent cannot edit landing-page content itself — so both pair their description with the Editor CTA. Task 3 is one of the three agent-performed actions in this recipe (alongside Merchant Center linking and Google Business Profile connection), pending approval. There is no status label and no shared "Next actions" block.
+Each task carries its own CTA and its own offer, and each one describes the change first, then says outright who does the work. Tasks 1 and 2 are on the user — the agent cannot edit landing-page content itself — so both pair their description with the Editor CTA. Task 3 is one of the three agent-performed actions in this recipe (alongside Merchant Center linking and Google Business Profile connection), pending approval. There is no status label and no shared "Next actions" block. This is one batch of three; the closing line invites the next one only because at least one more `OPEN` suggestion remains unshown.
 
 ## Translate suggestion types for the user
 
