@@ -83,7 +83,7 @@ Build the plan like this:
 
 1. Name the campaign and link `campaignSuccessGuide.url` as the analyzed landing page when present.
 2. For every `OPEN` suggestion, show its user-facing label and one concrete next step. Do not show enum values or tracking status unless resolving an ambiguity requires it.
-3. Within that same task, say explicitly whether the agent can do the work or the user must do it themselves — never leave this to be inferred from the presence or absence of a CTA. The "Which action to offer" table below states, per suggestion type, who does it. If the agent can help, phrase the task as an offer awaiting approval (e.g., "I can do this for you — approve and I'll make the change"). If the user must act, say so plainly (e.g., "You'll need to make this change yourself") rather than only describing the change and letting the CTA imply who's responsible. Prefer an offer to do supported work over instructions that make the user do the same operation manually, but never blur the two into one ambiguous sentence. Never move this statement into a separate closing question or a block shared across tasks.
+3. Within that same task, first describe the change itself, then say explicitly whether the agent can do it or the user must do it themselves — never leave the second part to be inferred from the presence or absence of a CTA, and never state it before the description. The "Which action to offer" table below states, per suggestion type, who does it. If the agent can help, follow the description with an offer awaiting approval (e.g., "...such as 'Request a quote.' I can make this update for you — just approve it."). If the user must act, follow the description with a plain statement of that (e.g., "...without scrolling. You'll need to make this change yourself.") rather than only describing the change and letting the CTA imply who's responsible. Prefer an offer to do supported work over instructions that make the user do the same operation manually, but never blur the two into one ambiguous sentence. Never move this statement into a separate closing question or a block shared across tasks.
 4. The "Which action to offer" table below states, per suggestion type, whether the task needs a CTA and where it points. When a task needs one, put that CTA inline in the task. A task keeps its own CTA even when another task in the same plan points to the same destination — never merge, dedupe, or move CTAs into a shared or closing section.
 
 Resolving navigation is read-only and does not require approval, including when the user says not to change anything yet. Use the selected site's `id` and `editUrl` from available site context. If the current-site ID is known but `editUrl` is absent, look up the site's navigation metadata through an available site-listing capability once; select only the result whose `id` or `metaSiteId` exactly matches that current-site ID, then read its `displayName`, `editUrl`, and `editorType`. Do not inspect other sites for campaigns. When no current-site ID is known and the lookup returns exactly one site, use it. When several sites are available and none is selected, present the tasks that don't need a CTA immediately and ask which site's CTAs to add for the rest.
@@ -123,16 +123,16 @@ Example:
 Landing page: [Request a quote](https://www.example.com/request-a-quote)
 
 1. **Clarify the main call to action**
-   I can update this for you — approve and I'll change the button copy to something like "Request a quote."
+   Make the button describe the conversion, such as "Request a quote." I can make this update for you — just approve it.
    [Go to Editor]({editUrl})
 2. **Move a call to action above the fold**
-   You'll need to make this change yourself: place the primary button where visitors see it without scrolling.
+   Place the primary button where visitors see it without scrolling. You'll need to make this change yourself.
    [Go to Editor]({editUrl})
 3. **Configure Google Ads search themes**
-   I can propose relevant themes and apply the set you approve.
+   Add search themes to sharpen this campaign's targeting. I can propose a relevant set and apply it once you approve.
 ```
 
-Each task carries its own CTA and its own offer, and each one says outright who does the work — task 1 is agent-performed pending approval, task 2 is on the user, task 3 is agent-performed pending approval. The Editor link appears on both of the first two tasks even though they share a destination, regardless of who does the work — there is no status label and no shared "Next actions" block.
+Each task carries its own CTA and its own offer, and each one describes the change first, then says outright who does the work — task 1 is agent-performed pending approval, task 2 is on the user, task 3 is agent-performed pending approval. The Editor link appears on both of the first two tasks even though they share a destination, regardless of who does the work — there is no status label and no shared "Next actions" block.
 
 ## Translate suggestion types for the user
 
