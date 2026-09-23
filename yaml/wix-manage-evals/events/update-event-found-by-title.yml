@@ -2,7 +2,7 @@ name: events/update-event-found-by-title
 description: >-
   Verifies the manage-events recipe gets the agent from an event named in the prompt to a saved
   update without a detour through drafts: it looks the event up by title with Query Events, leaves
-  includeDrafts out (app callers do not hold READ_DRAFT_EVENTS, so the flag fails 403), and patches
+  includeDrafts false (app callers do not hold READ_DRAFT_EVENTS, so true fails 403), and patches
   the seeded event rather than creating a new one.
 triggerPrompt: >-
   Add a short description to my Open House event saying it runs all afternoon.

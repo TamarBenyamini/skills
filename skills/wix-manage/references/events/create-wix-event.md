@@ -62,7 +62,7 @@ is created published (`status: "UPCOMING"`).
 ```json
 {
   "event": {
-    "id": "217b6eed-f580-43e4-974a-6cc0bfa4b58a",
+    "id": "<EVENT_ID>",
     "title": "Summer Gala",
     "slug": "summer-gala",
     "status": "UPCOMING",
@@ -185,7 +185,7 @@ The response is the definition under `ticketDefinition`:
 ```json
 {
   "ticketDefinition": {
-    "id": "625115fd-31cb-4f64-b7bd-06c3137486c0",
+    "id": "<TICKET_DEFINITION_ID>",
     "eventId": "<EVENT_ID>",
     "revision": "1",
     "name": "General Admission",
