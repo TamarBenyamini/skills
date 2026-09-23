@@ -84,8 +84,10 @@ To delete a set of events in one call, `POST /events/v3/bulk/events/delete-by-fi
 { "filter": { "filter": { "id": { "$in": ["<EVENT_ID>", "<EVENT_ID>"] } } } }
 ```
 
-The outer `filter` is the bulk request's one field; the inner `filter` is the same grammar as
-`query.filter` on Query Events, so the doubled key is deliberate, not a typo. Resolve the ids with the
+The request's one field, `filter`, takes a whole query-shaped object — the same object Query Events
+takes under `query`, with the conditions under its own `filter` key — not a bare condition map. That
+is why the key appears twice: `filter.filter.<field>`. A single level,
+`{ "filter": { "id": { "$in": [...] } } }`, is not the documented shape. Resolve the ids with the
 query above first; one `DELETE` per event also works but costs a call each.
 
 > **Draft events need the `WIX_EVENTS.READ_DRAFT_EVENTS` permission.** Without it, publishing a
