@@ -71,8 +71,31 @@ function buildRegistration(ev) {
   }
   return {
     initialType: "RSVP",
-    rsvp: { responseType: ev.rsvpResponseType ?? "YES_ONLY" }, // "YES_ONLY" | "YES_AND_NO"
+    rsvp: {
+      responseType: ev.rsvpResponseType ?? "YES_ONLY", // "YES_ONLY" | "YES_AND_NO"
+      ...(Number.isInteger(ev.rsvpLimit) && ev.rsvpLimit > 0 ? { limit: ev.rsvpLimit } : {}),
+      ...(ev.waitlist === true ? { waitlistEnabled: true } : {}),
+      // A future start date schedules the opening: the event publishes with status SCHEDULED_RSVP and
+      // the page says when registration opens; before it, an RSVP is refused. The API requires the
+      // window's END with its start (run 152: "both start and end dates"); it defaults to the event's
+      // start, the moment registration stops making sense.
+      ...(ev.registrationOpensAt ? { startDate: ev.registrationOpensAt, endDate: ev.registrationClosesAt ?? ev.startDate } : {}),
+    },
   };
+}
+
+// {guests: N} on an RSVP event -> the registration form's guest control, added through the Events
+// Forms API AFTER the event exists (Create Event ignores form.controls; probed live 2026-09-28). The
+// control lands as a count input (options "0".."N") plus a names list capped at N — the shape the
+// site's form reader (events-core toRsvpForm) reads its max from — and takes effect at once.
+// docs: https://dev.wix.com/docs/api-reference/business-solutions/events/event-management/forms/add-control.md
+export async function addGuestControl(ctx, eventId, guests) {
+  const n = Number(guests);
+  if (!Number.isInteger(n) || n < 1) return false;
+  await req(ctx, `/events/v1/events/${eventId}/form/control`, { body: {
+    additionalGuests: { maxGuests: n, namesMandatory: false, labels: { single: "Bringing a guest?", multiple: "How many guests?" } },
+  } });
+  return true;
 }
 
 // ---- operations ----------------------------------------------------------------------------------
@@ -233,8 +256,15 @@ export async function setupEvents(ctx, { events = [], currency } = {}) {
     const tiers = ev.type === "TICKETING" && ev.ticketTiers?.length
       ? await createTicketTiers(ctx, e.id, ev.ticketTiers.map((t) => ({ ...t, currency: t.currency ?? siteCurrency })))
       : [];
+    // The guest control goes on the draft's form before publish; a refusal leaves the event without it
+    // (the owner adds it in the dashboard) and the result says so.
+    let guestControl = false;
+    if (ev.type !== "TICKETING" && ev.guests) {
+      try { guestControl = await addGuestControl(ctx, e.id, ev.guests); }
+      catch (err) { console.error(`guest control skipped for "${ev.title}": ${err.message}`); }
+    }
     await publishEvent(ctx, e.id);
-    created.push({ ...e, category: ev.category, imageUrl: ev.imageUrl, imagePrompt: ev.imagePrompt, ticketCount: tiers.length, feeTypes: tiers.map((t) => t.feeType) });
+    created.push({ ...e, category: ev.category, imageUrl: ev.imageUrl, imagePrompt: ev.imagePrompt, ticketCount: tiers.length, feeTypes: tiers.map((t) => t.feeType), ...(ev.guests ? { guestControl } : {}) });
   }
 
   const names = [...new Set(created.map((e) => e.category).filter(Boolean))];
